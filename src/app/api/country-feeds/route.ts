@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
 import { fetchCountryFeeds, fetchMultipleCountryFeeds } from '@/lib/rssParser';
 import { CountryCode } from '@/config/multiTenantFeeds';
 
