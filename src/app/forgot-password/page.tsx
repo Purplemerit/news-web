@@ -114,7 +114,7 @@ export default function ForgotPasswordPage() {
 
             <div className={styles.rightSection}>
                 <img
-                    src="/auth/login.png"
+                    src="./Frame21214530683.png"
                     alt="Forgot Password"
                     className={styles.authImage}
                 />

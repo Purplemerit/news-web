@@ -104,7 +104,7 @@ function VerifyOTPContent() {
 
             <div className={styles.rightSection}>
                 <img
-                    src="/auth/login.png"
+                    src="./Frame21214530684.png"
                     alt="Verify Email"
                     className={styles.authImage}
                 />

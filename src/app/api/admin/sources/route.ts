@@ -21,14 +21,20 @@ export async function GET() {
         const usersCount = await prisma.user.count();
         const articlesCount = await prisma.article.count();
         const commentsCount = await prisma.comment.count();
+        const subscribersCount = await prisma.newsletter.count();
+        const newsletter = await prisma.newsletter.findMany({
+            orderBy: { createdAt: 'desc' }
+        });
 
         return NextResponse.json({
             sources,
             analytics,
+            newsletter,
             stats: {
                 users: usersCount,
                 articles: articlesCount,
-                comments: commentsCount
+                comments: commentsCount,
+                subscribers: subscribersCount
             }
         });
     } catch (error) {

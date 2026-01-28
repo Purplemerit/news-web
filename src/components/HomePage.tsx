@@ -33,6 +33,11 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Newsletter states
+  const [subEmail, setSubEmail] = useState('');
+  const [subStatus, setSubStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
+  const [subLoading, setSubLoading] = useState(false);
+
   useEffect(() => {
     async function loadArticles() {
       if (countryLoading) return;
@@ -54,6 +59,34 @@ export default function HomePage() {
     }
     loadArticles();
   }, [countryCode, countryLoading]);
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubLoading(true);
+    setSubStatus({ type: null, message: '' });
+
+    try {
+      const res = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: subEmail }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setSubStatus({ type: 'success', message: data.message });
+        setSubEmail('');
+      } else {
+        setSubStatus({ type: 'error', message: data.message });
+      }
+    } catch (err) {
+      setSubStatus({ type: 'error', message: 'Failed to subscribe. Please try again.' });
+    } finally {
+      setSubLoading(false);
+      // Clear status after 5 seconds
+      setTimeout(() => setSubStatus({ type: null, message: '' }), 5000);
+    }
+  };
 
   if (loading || countryLoading) {
     return (
@@ -230,10 +263,25 @@ export default function HomePage() {
           <img src="https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&q=80&w=2000" alt="" className={styles.subscribeBg} />
           <div className={styles.subscribeContent}>
             <h2 className={styles.subscribeTitle}>Stay informed with our latest news and updates.</h2>
-            <form className={styles.subscribeForm} onSubmit={(e) => e.preventDefault()}>
-              <input type="email" placeholder="Email Address" className={styles.subscribeInput} required />
-              <button type="submit" className={styles.subscribeButton}>Subscribe</button>
+            <form className={styles.subscribeForm} onSubmit={handleSubscribe}>
+              <input
+                type="email"
+                placeholder="Email Address"
+                className={styles.subscribeInput}
+                value={subEmail}
+                onChange={(e) => setSubEmail(e.target.value)}
+                required
+                disabled={subLoading}
+              />
+              <button type="submit" className={styles.subscribeButton} disabled={subLoading}>
+                {subLoading ? 'Joining...' : 'Subscribe'}
+              </button>
             </form>
+            {subStatus.type && (
+              <p className={`${styles.subMsg} ${subStatus.type === 'success' ? styles.subSuccess : styles.subError}`}>
+                {subStatus.message}
+              </p>
+            )}
           </div>
         </section>
       </main>

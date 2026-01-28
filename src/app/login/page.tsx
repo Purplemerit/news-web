@@ -135,7 +135,7 @@ function LoginContent() {
 
             <div className={styles.rightSection}>
                 <img
-                    src="/auth/login.png"
+                    src="./Frame21214530682.png"
                     alt="Premium Lifestyle"
                     className={styles.authImage}
                 />

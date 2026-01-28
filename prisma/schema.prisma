@@ -80,3 +80,9 @@ model Analytics {
   sessions  Int      @default(0) // total number of sessions
   updatedAt DateTime @updatedAt
 }
+
+model Newsletter {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}

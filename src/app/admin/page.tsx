@@ -16,7 +16,8 @@ import {
     ExternalLink,
     Clock,
     Eye,
-    Shield
+    Shield,
+    Mail
 } from 'lucide-react';
 import styles from './Admin.module.css';
 
@@ -24,6 +25,7 @@ interface Stat {
     users: number;
     articles: number;
     comments: number;
+    subscribers: number;
 }
 
 interface Analytics {
@@ -31,6 +33,12 @@ interface Analytics {
     views: number;
     avgTime: number;
     sessions: number;
+}
+
+interface Newsletter {
+    id: string;
+    email: string;
+    createdAt: string;
 }
 
 interface Source {
@@ -49,8 +57,9 @@ export default function AdminDashboard() {
     const [stats, setStats] = useState<Stat | null>(null);
     const [analytics, setAnalytics] = useState<Analytics[]>([]);
     const [sources, setSources] = useState<Source[]>([]);
+    const [newsletter, setNewsletter] = useState<Newsletter[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'overview' | 'sources' | 'analytics'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'sources' | 'analytics' | 'newsletter'>('overview');
 
     // Form state for adding/editing sources
     const [editingSource, setEditingSource] = useState<Partial<Source> | null>(null);
@@ -63,6 +72,7 @@ export default function AdminDashboard() {
                 setStats(data.stats);
                 setAnalytics(data.analytics);
                 setSources(data.sources);
+                setNewsletter(data.newsletter);
             }
         } catch (err) {
             console.error('Failed to fetch admin data:', err);
@@ -140,6 +150,12 @@ export default function AdminDashboard() {
                     >
                         <BarChart3 size={20} /> Site Analytics
                     </button>
+                    <button
+                        className={activeTab === 'newsletter' ? styles.navItemActive : styles.navItem}
+                        onClick={() => setActiveTab('newsletter')}
+                    >
+                        <Mail size={20} /> Newsletter
+                    </button>
                     <button className={styles.navItem} onClick={() => router.push('/')}>
                         <ExternalLink size={20} /> View Site
                     </button>
@@ -183,6 +199,15 @@ export default function AdminDashboard() {
                                 <div className={styles.statInfo}>
                                     <p>Total Comments</p>
                                     <h3>{stats?.comments}</h3>
+                                </div>
+                            </div>
+                            <div className={styles.statCard} style={{ borderLeft: '4px solid #f59e0b' }}>
+                                <div className={styles.statIcon} style={{ background: '#fffbeb', color: '#f59e0b' }}>
+                                    <Mail size={24} />
+                                </div>
+                                <div className={styles.statInfo}>
+                                    <p>Subscribers</p>
+                                    <h3>{stats?.subscribers}</h3>
                                 </div>
                             </div>
                         </div>
@@ -333,6 +358,37 @@ export default function AdminDashboard() {
                                             <td>{Math.round((item.views * item.avgTime) / 60)} mins</td>
                                         </tr>
                                     ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'newsletter' && (
+                    <div className={styles.analyticsList}>
+                        <h2>Newsletter Subscribers</h2>
+                        <div className={styles.tableWrapper}>
+                            <table className={styles.table}>
+                                <thead>
+                                    <tr>
+                                        <th>Email Address</th>
+                                        <th>Joined Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {newsletter.map(sub => (
+                                        <tr key={sub.id}>
+                                            <td className={styles.pathCell}>{sub.email}</td>
+                                            <td>{new Date(sub.createdAt).toLocaleDateString()}</td>
+                                        </tr>
+                                    ))}
+                                    {newsletter.length === 0 && (
+                                        <tr>
+                                            <td colSpan={2} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                                                No subscribers yet.
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
