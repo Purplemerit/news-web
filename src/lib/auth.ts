@@ -97,36 +97,6 @@ export const authOptions: NextAuthOptions = {
         })
     ],
     callbacks: {
-        async signIn({ user, account, profile }) {
-            // Allow all sign-ins (both credentials and OAuth)
-            if (account?.provider === "google") {
-                // For Google OAuth, ensure user exists in database
-                try {
-                    const existingUser = await prisma.user.findUnique({
-                        where: { email: user.email! }
-                    });
-
-                    if (!existingUser) {
-                        // Create new user from Google OAuth
-                        await prisma.user.create({
-                            data: {
-                                email: user.email!,
-                                name: user.name || "",
-                                image: user.image,
-                                emailVerified: new Date(),
-                                password: null, // Google users don't have password
-                                role: "USER",
-                            }
-                        });
-                    }
-                    return true;
-                } catch (error) {
-                    console.error("Error creating Google user:", error);
-                    return false;
-                }
-            }
-            return true;
-        },
         async session({ session, token }) {
             if (token && session.user) {
                 (session.user as any).id = token.id;
@@ -134,23 +104,11 @@ export const authOptions: NextAuthOptions = {
             }
             return session
         },
-        async jwt({ token, user, account }) {
+        async jwt({ token, user }) {
             if (user) {
                 token.id = user.id;
-                token.role = (user as any).role;
+                token.role = (user as any).role || "USER";
             }
-
-            // For Google OAuth, fetch user role from database
-            if (account?.provider === "google" && token.email) {
-                const dbUser = await prisma.user.findUnique({
-                    where: { email: token.email }
-                });
-                if (dbUser) {
-                    token.id = dbUser.id;
-                    token.role = dbUser.role;
-                }
-            }
-
             return token;
         }
     },
