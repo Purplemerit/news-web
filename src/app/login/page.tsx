@@ -19,6 +19,22 @@ function LoginContent() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
+    React.useEffect(() => {
+        const errorParam = searchParams.get('error');
+        if (errorParam) {
+            if (errorParam === 'OAuthSignin') setError('Error occurred while signing in with Google.');
+            else if (errorParam === 'OAuthCallback') setError('Error occurred during Google authentication callback.');
+            else if (errorParam === 'OAuthCreateAccount') setError('Could not create user account with Google.');
+            else if (errorParam === 'EmailCreateAccount') setError('Could not create user account with email.');
+            else if (errorParam === 'Callback') setError('Error occurred during authentication callback.');
+            else if (errorParam === 'OAuthAccountNotLinked') setError('This email is already linked to another login method.');
+            else if (errorParam === 'EmailSignin') setError('The email sign in link is invalid or has expired.');
+            else if (errorParam === 'CredentialsSignin') setError('Invalid email or password.');
+            else if (errorParam === 'SessionRequired') setError('Please sign in to access this page.');
+            else setError('An unexpected authentication error occurred.');
+        }
+    }, [searchParams]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
