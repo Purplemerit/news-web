@@ -101,9 +101,9 @@ export default function Navbar() {
                 </div>
 
                 {/* Navigation Row */}
-                <nav className={styles.navRow}>
+<nav className={styles.navRow}>
                     <ul className={styles.navList}>
-                        {['International', 'Health', 'Business', 'Environment', 'Technology', 'About Us'].map((item) => (
+                        {['Sports', 'Business', 'Technology', 'Entertainment', 'Politics', 'Health', 'World', 'About Us'].map((item) => (
                             <li key={item}>
                                 <Link
                                     href={item === 'About Us' ? '/about' : `/category/${item.toLowerCase()}`}

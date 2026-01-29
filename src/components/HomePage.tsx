@@ -45,7 +45,7 @@ export default function HomePage() {
       setError(null);
       try {
         const response = await fetch(
-          `/api/country-feeds?country=${countryCode}&multiple=homepage,news,business,sports,technology,world,health,environment`
+          `/api/country-feeds?country=${countryCode}&multiple=homepage,news,business,sports,technology,entertainment,politics,world,health`
         );
         if (!response.ok) throw new Error('Failed to fetch feeds');
         const feeds = await response.json();

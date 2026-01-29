@@ -56,11 +56,15 @@ function safeText(text: any): string {
 
 // Map slug to RSS category
 const slugToCategory: Record<string, 'homepage' | 'news' | 'world' | 'business' | 'sports' | 'technology' | 'entertainment' | 'politics'> = {
-  entertainment: 'entertainment',
   sports: 'sports',
-  politics: 'politics',
   business: 'business',
   technology: 'technology',
+  entertainment: 'entertainment',
+  politics: 'politics',
+  world: 'world',
+  health: 'news',
+  international: 'world',
+  environment: 'news',
 };
 
 interface CategoryPageProps {

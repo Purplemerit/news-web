@@ -13,11 +13,13 @@ interface SidebarProps {
 
 const MENU_ITEMS = [
     { name: 'Home', link: '/' },
-    { name: 'International', link: '/category/international' },
-    { name: 'Health', link: '/category/health' },
+    { name: 'Sports', link: '/category/sports' },
     { name: 'Business', link: '/category/business' },
-    { name: 'Environment', link: '/category/environment' },
     { name: 'Technology', link: '/category/technology' },
+    { name: 'Entertainment', link: '/category/entertainment' },
+    { name: 'Politics', link: '/category/politics' },
+    { name: 'Health', link: '/category/health' },
+    { name: 'World', link: '/category/world' },
     { name: 'About Us', link: '/about' },
 ];
 
