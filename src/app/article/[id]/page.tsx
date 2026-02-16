@@ -90,16 +90,18 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
       const scraped = await scrapeFullArticle(source);
 
       const textOnly = scraped?.textContent || '';
-      const paragraphCount = scraped?.content?.split('</p>').length || 0;
+      const paragraphCount = scraped?.content?.split('</p>').filter(p => p.trim().length > 50).length || 0;
 
-      // REQUIREMENT: Lowered to 800 chars to ensure content visibility
-      if (scraped && textOnly.length > 800 && paragraphCount >= 3) {
-        console.log(`✅ Scraped content accepted (${textOnly.length} chars)`);
+      // ULTRA-STRICT QUALITY CHECK: 
+      // If content is less than 1800 characters OR fewer than 5 paragraphs, 
+      // it is considered 'poor quality' and we force AI expansion.
+      if (scraped && textOnly.length > 1800 && paragraphCount >= 5) {
+        console.log(`✅ Scraped content accepted: ${textOnly.length} chars, ${paragraphCount} paragraphs.`);
         fullContent = scraped.content;
         isFullContent = true;
         wordCount = textOnly.trim().split(/\s+/).length;
       } else {
-        console.log(`⚠️ Scraped content thin (${textOnly.length} chars), using AI expansion...`);
+        console.log(`⚠️ Scraped content considered TOO SHORT (${textOnly.length} chars, ${paragraphCount} paras). FORCING Full AI Expansion...`);
         const expanded = await expandNewsSnippet(displayTitle, snippet, category);
         fullContent = expanded;
         isFullContent = true;

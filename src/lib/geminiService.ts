@@ -120,19 +120,19 @@ export async function expandNewsSnippet(
       const model = genAI.getGenerativeModel({ model: modelName });
       const prompt = `
         You are a senior investigative journalist writing for a premier news organization. 
-        I need you to transform this short news brief into a COMPREHENSIVE, FULL-LENGTH news article of AT LEAST 500 words.
+        I need you to transform this short news brief into a COMPREHENSIVE, DEEP-DIVE news article of AT LEAST 800-1000 words.
         
         Headline: ${title}
         Original Brief: ${snippet}
         Category: ${category || 'General News'}
         
         Detailed Instructions:
-        1. **Expansion**: Expand the brief into a long-form report with 6-8 detailed paragraphs.
-        2. **Context**: Add background context, historical relevance, and expert-sounding analysis.
-        3. **Structure**: Use a formal journalistic structure.
-        4. **Tone**: Neutral, professional, and authoritative.
+        1. **Expansion**: Expand the brief into a long-form report with 8-10 detailed paragraphs.
+        2. **Context**: Add extensive background context, global implications, and historical relevance.
+        3. **Technical Detail**: Elaborate on every name, place, and event mentioned. 
+        4. **Structure**: Lede, detailed body with subheadings, and a comprehensive conclusion.
         5. **Formatting**: Return ONLY clean HTML. Use <p> for paragraphs and <h3> for subheadings.
-        6. **MANDATORY LENGTH**: This MUST be at least 500 words. Do not summarize. Elaborate on every point.
+        6. **ABSOLUTE MINIMUM LENGTH**: This MUST exceed 1500 characters. DO NOT return a short summary. 
         
         Return ONLY the HTML article.
       `;
@@ -146,8 +146,8 @@ export async function expandNewsSnippet(
         lastBestExpansion = cleaned;
       }
 
-      // If we got a genuine expansion (>800 chars), return it immediately
-      if (cleaned.length > 800) {
+      // If we got a TRULY long expansion (>1500 chars), return it immediately
+      if (cleaned.length > 1500) {
         console.log(`✅ AI Expansion successful with ${modelName} (${cleaned.length} characters)`);
         return cleaned;
       }
