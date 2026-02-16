@@ -61,70 +61,57 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) return cached.data;
 
     try {
-        console.log(`🔍 Scraping started for: ${url}`);
+        console.log(`🔍 Scraping for: ${url}`);
         const response = await fetchWithTimeout(url);
-        if (!response.ok) {
-            console.error(`❌ HTTP Error ${response.status} for ${url}`);
-            return null;
-        }
+        if (!response.ok) return null;
 
         const html = await response.text();
         const $ = cheerio.load(html);
 
-        // Remove junk
-        $('script, style, nav, footer, header, iframe, noscript, .ads, #ads, aside, .sidebar').remove();
+        // Remove extreme junk
+        $('script, style, nav, footer, header, iframe, noscript, .ads, #ads, aside').remove();
 
-        // 1. DENSE TEXT EXTRACTION
-        let bestBlock: any = null;
-        let maxScore = 0;
+        // SMART EXTRACTION: Find the container with the most text
+        let bestContent = '';
+        let maxTextLength = 0;
 
-        $('div, section, article, main').each((_, el) => {
-            const $el = $(el);
-            let score = 0;
-
-            // Score based on paragraphs
-            $el.find('p').each((_, p) => {
-                const text = $(p).text().trim();
-                if (text.length > 80) score += 20;
-                if (text.length > 150) score += 40;
-            });
-
-            // Adjust by density
-            const textLen = $el.text().trim().length;
-            const linkLen = $el.find('a').text().trim().length;
-            const density = textLen > 0 ? (textLen - linkLen) / textLen : 0;
-            score *= density;
-
-            if (score > maxScore) {
-                maxScore = score;
-                bestBlock = $el;
+        // Try standard containers first
+        const selectors = ['article', '.article-content', '.post-content', '.entry-content', 'main', '#main-content', '.content'];
+        selectors.forEach(selector => {
+            const el = $(selector);
+            if (el.length > 0) {
+                const text = el.text().trim();
+                if (text.length > maxTextLength) {
+                    maxTextLength = text.length;
+                    bestContent = el.html() || '';
+                }
             }
         });
 
-        let mainContent = '';
-        if (bestBlock && maxScore > 20) {
-            console.log(`✅ Best block found with score: ${maxScore}`);
-            bestBlock.find('button, .share, .author, .date, .tags').remove();
-            mainContent = bestBlock.html() || '';
-        } else {
-            console.log(`⚠️ No dense block found, falling back to body.`);
-            mainContent = $('body').html() || '';
+        // Fallback: search for any div with significant text
+        if (maxTextLength < 800) {
+            $('div').each((_, el) => {
+                const text = $(el).text().trim();
+                if (text.length > maxTextLength && text.length < 50000) {
+                    maxTextLength = text.length;
+                    bestContent = $(el).html() || '';
+                }
+            });
         }
 
-        // 2. DEDUPLICATION
-        const $clean = cheerio.load(mainContent);
+        // 2. CLEANUP
+        const $clean = cheerio.load(bestContent);
 
-        // Remove duplicate headings at top
-        $clean('h1, h2, h3').slice(0, 2).remove();
-
-        // Remove images right at the top (usually hero duplicates)
-        $clean('body > *:nth-child(-n+3)').each((_, el) => {
-            if ($(el).is('img') || $(el).find('img').length > 0) {
+        // Remove common repetitive patterns
+        $clean('h1, h2').each((_, el) => {
+            const text = $(el).text().trim();
+            const pageTitle = $('title').text().trim();
+            if (text === pageTitle || pageTitle.includes(text) || text.length < 3) {
                 $(el).remove();
             }
         });
 
-        mainContent = $clean('body').html() || '';
+        const mainContent = $clean('body').html() || '';
         const textContent = $clean('body').text().trim().replace(/\s+/g, ' ');
 
         const result: ScrapedArticle = {
@@ -136,16 +123,14 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
             siteName: url.split('/')[2],
         };
 
-        if (result.textContent.length > 300) {
+        if (result.textContent.length > 500) {
             scraperCache.set(url, { data: result, timestamp: Date.now() });
-            console.log(`🎉 Article scraped successfully: ${result.textContent.length} characters.`);
-        } else {
-            console.warn(`📉 Scraped content too thin: ${result.textContent.length} characters.`);
+            console.log(`✅ Scraped ${result.textContent.length} characters.`);
         }
 
         return result;
     } catch (error: any) {
-        console.error(`❌ Scraper error for ${url}:`, error.message);
+        console.error(`Scraper error:`, error.message);
         return null;
     }
 }

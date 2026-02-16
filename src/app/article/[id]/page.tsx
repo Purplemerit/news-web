@@ -92,9 +92,9 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
       const textOnly = scraped?.textContent || '';
       const paragraphCount = scraped?.content?.split('</p>').length || 0;
 
-      // REQUIREMENT: Must be >1800 characters of clean text OR >6 robust paragraphs
-      if (scraped && textOnly.length > 1800 && paragraphCount >= 6) {
-        console.log(`✅ Scraped content looks solid (${textOnly.length} chars)`);
+      // REQUIREMENT: Must be >1400 characters of clean text OR >4 paragraphs
+      if (scraped && textOnly.length > 1400 && paragraphCount >= 4) {
+        console.log(`✅ Scraped content accepted (${textOnly.length} chars)`);
         fullContent = scraped.content;
         isFullContent = true;
         wordCount = textOnly.trim().split(/\s+/).length;

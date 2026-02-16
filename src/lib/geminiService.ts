@@ -112,6 +112,7 @@ export async function expandNewsSnippet(
   if (!apiKey) return snippet ? `<p>${snippet}</p>` : '';
 
   const snippetLen = snippet?.length || 0;
+  let lastBestExpansion = '';
 
   for (const modelName of GEMINI_MODELS) {
     try {
@@ -119,28 +120,34 @@ export async function expandNewsSnippet(
       const model = genAI.getGenerativeModel({ model: modelName });
       const prompt = `
         You are a senior investigative journalist writing for a premier news organization. 
-        I need you to transform this short news brief into a COMPREHENSIVE, FULL-LENGTH news article of 400 to 600 words.
+        I need you to transform this short news brief into a COMPREHENSIVE, FULL-LENGTH news article of AT LEAST 500 words.
         
         Headline: ${title}
         Original Brief: ${snippet}
         Category: ${category || 'General News'}
         
         Detailed Instructions:
-        1. **Expansion**: Expand the brief into a long-form report with at least 5-7 detailed paragraphs.
-        2. **Context**: Add background context, historical relevance, or broader implications of this news.
-        3. **Structure**: Use a formal journalistic structure (Lede, Body paragraphs with supporting details, and Conclusion).
-        4. **Tone**: Maintain a strictly professional, neutral, and authoritative news tone.
-        5. **Formatting**: Return ONLY clean HTML. Use <p> for paragraphs and <h3> for insightful subheadings.
-        6. **Length Requirement**: It is CRITICAL that the article is long and detailed. Aim for 500 words.
+        1. **Expansion**: Expand the brief into a long-form report with 6-8 detailed paragraphs.
+        2. **Context**: Add background context, historical relevance, and expert-sounding analysis.
+        3. **Structure**: Use a formal journalistic structure.
+        4. **Tone**: Neutral, professional, and authoritative.
+        5. **Formatting**: Return ONLY clean HTML. Use <p> for paragraphs and <h3> for subheadings.
+        6. **MANDATORY LENGTH**: This MUST be at least 500 words. Do not summarize. Elaborate on every point.
         
-        Return ONLY the HTML article. No meta-commentary.
+        Return ONLY the HTML article.
       `;
 
       const result = await model.generateContent(prompt);
       const content = result.response.text().trim();
       const cleaned = content.replace(/```html|```/g, '').trim();
 
-      if (cleaned.length > snippetLen * 1.5 && cleaned.length > 500) {
+      // Track the longest expansion found so far
+      if (cleaned.length > lastBestExpansion.length) {
+        lastBestExpansion = cleaned;
+      }
+
+      // If we got a genuine expansion (>800 chars), return it immediately
+      if (cleaned.length > 800) {
         console.log(`✅ AI Expansion successful with ${modelName} (${cleaned.length} characters)`);
         return cleaned;
       }
@@ -148,6 +155,11 @@ export async function expandNewsSnippet(
       console.warn(`Model ${modelName} expansion failed:`, error.message);
       if (error.message?.includes('404')) continue;
     }
+  }
+
+  // Final fallback: Use the best expansion we got, otherwise return snippet
+  if (lastBestExpansion && lastBestExpansion.length > snippetLen * 1.2) {
+    return lastBestExpansion;
   }
 
   return snippet ? `<p>${snippet}</p>` : '';
