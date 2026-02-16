@@ -61,39 +61,71 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) return cached.data;
 
     try {
+        console.log(`🔍 Scraping started for: ${url}`);
         const response = await fetchWithTimeout(url);
-        if (!response.ok) return null;
+        if (!response.ok) {
+            console.error(`❌ HTTP Error ${response.status} for ${url}`);
+            return null;
+        }
 
         const html = await response.text();
         const $ = cheerio.load(html);
 
         // Remove junk
-        $('script, style, nav, footer, header, iframe, noscript, .ads, #ads').remove();
+        $('script, style, nav, footer, header, iframe, noscript, .ads, #ads, aside, .sidebar').remove();
 
-        // Smart Extraction: Find the largest block of text
-        let mainContent = '';
-        let largestTextLen = 0;
+        // 1. DENSE TEXT EXTRACTION
+        let bestBlock: any = null;
+        let maxScore = 0;
 
-        // Common article containers
-        const containers = ['article', '.article-body', '.content', '.post-content', '.entry-content', 'main', '#main-content'];
+        $('div, section, article, main').each((_, el) => {
+            const $el = $(el);
+            let score = 0;
 
-        for (const selector of containers) {
-            const el = $(selector);
-            if (el.length > 0) {
-                const text = el.text().trim();
-                if (text.length > largestTextLen) {
-                    largestTextLen = text.length;
-                    mainContent = el.html() || '';
-                }
+            // Score based on paragraphs
+            $el.find('p').each((_, p) => {
+                const text = $(p).text().trim();
+                if (text.length > 80) score += 20;
+                if (text.length > 150) score += 40;
+            });
+
+            // Adjust by density
+            const textLen = $el.text().trim().length;
+            const linkLen = $el.find('a').text().trim().length;
+            const density = textLen > 0 ? (textLen - linkLen) / textLen : 0;
+            score *= density;
+
+            if (score > maxScore) {
+                maxScore = score;
+                bestBlock = $el;
             }
-        }
+        });
 
-        // Fallback: Use body if no container found
-        if (largestTextLen < 500) {
+        let mainContent = '';
+        if (bestBlock && maxScore > 20) {
+            console.log(`✅ Best block found with score: ${maxScore}`);
+            bestBlock.find('button, .share, .author, .date, .tags').remove();
+            mainContent = bestBlock.html() || '';
+        } else {
+            console.log(`⚠️ No dense block found, falling back to body.`);
             mainContent = $('body').html() || '';
         }
 
-        const textContent = cheerio.load(mainContent).text().trim().replace(/\s+/g, ' ');
+        // 2. DEDUPLICATION
+        const $clean = cheerio.load(mainContent);
+
+        // Remove duplicate headings at top
+        $clean('h1, h2, h3').slice(0, 2).remove();
+
+        // Remove images right at the top (usually hero duplicates)
+        $clean('body > *:nth-child(-n+3)').each((_, el) => {
+            if ($(el).is('img') || $(el).find('img').length > 0) {
+                $(el).remove();
+            }
+        });
+
+        mainContent = $clean('body').html() || '';
+        const textContent = $clean('body').text().trim().replace(/\s+/g, ' ');
 
         const result: ScrapedArticle = {
             title: $('title').text() || '',
@@ -104,13 +136,16 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
             siteName: url.split('/')[2],
         };
 
-        if (result.content.length > 500) {
+        if (result.textContent.length > 300) {
             scraperCache.set(url, { data: result, timestamp: Date.now() });
+            console.log(`🎉 Article scraped successfully: ${result.textContent.length} characters.`);
+        } else {
+            console.warn(`📉 Scraped content too thin: ${result.textContent.length} characters.`);
         }
 
         return result;
     } catch (error: any) {
-        console.error(`Scraper error for ${url}:`, error.message);
+        console.error(`❌ Scraper error for ${url}:`, error.message);
         return null;
     }
 }
