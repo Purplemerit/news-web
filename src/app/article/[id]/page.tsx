@@ -88,22 +88,25 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
         isFullContent = true;
         wordCount = scraped.textContent ? scraped.textContent.split(/\s+/).length : wordCount;
       } else {
-        fullContent = await expandNewsSnippet(title, snippet, category);
+        const expanded = await expandNewsSnippet(title, snippet, category);
+        fullContent = expanded;
         isFullContent = true;
-        isAiEnhanced = true;
+        isAiEnhanced = expanded.length > (snippet?.length || 0) + 200;
         wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
       }
     } catch (err) {
       console.error('Scraping error, falling back to AI:', err);
-      fullContent = await expandNewsSnippet(title, snippet, category);
+      const expanded = await expandNewsSnippet(title, snippet, category);
+      fullContent = expanded;
       isFullContent = true;
-      isAiEnhanced = true;
+      isAiEnhanced = expanded.length > (snippet?.length || 0) + 200;
       wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
     }
   } else if (snippet) {
-    fullContent = await expandNewsSnippet(title, snippet, category);
+    const expanded = await expandNewsSnippet(title, snippet, category);
+    fullContent = expanded;
     isFullContent = true;
-    isAiEnhanced = true;
+    isAiEnhanced = expanded.length > (snippet?.length || 0) + 200;
     wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
   }
 
