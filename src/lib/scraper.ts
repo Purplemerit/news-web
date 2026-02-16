@@ -76,7 +76,7 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
         let maxTextLength = 0;
 
         // Try standard containers first
-        const selectors = ['article', '.article-content', '.post-content', '.entry-content', 'main', '#main-content', '.content'];
+        const selectors = ['article', '.article-content', '.post-content', '.entry-content', 'main', '#main-content', '.content', '.story-content', '.article__body-text'];
         selectors.forEach(selector => {
             const el = $(selector);
             if (el.length > 0) {
@@ -88,31 +88,56 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
             }
         });
 
-        // Fallback: search for any div with significant text
+        // Fallback: search for any div with significant text, but score by density
         if (maxTextLength < 800) {
-            $('div').each((_, el) => {
-                const text = $(el).text().trim();
-                if (text.length > maxTextLength && text.length < 50000) {
+            $('div, section').each((_, el) => {
+                const $el = $(el);
+                if ($el.is('nav, footer, header, aside')) return;
+
+                const text = $el.text().trim();
+                const linkText = $el.find('a').text().trim();
+                const density = text.length > 0 ? (text.length - linkText.length) / text.length : 0;
+
+                if (text.length > maxTextLength && text.length < 30000 && density > 0.5) {
                     maxTextLength = text.length;
-                    bestContent = $(el).html() || '';
+                    bestContent = $el.html() || '';
                 }
             });
         }
 
         // 2. CLEANUP
-        const $clean = cheerio.load(bestContent);
+        if (bestContent) {
+            const $clean = cheerio.load(bestContent);
 
-        // Remove common repetitive patterns
-        $clean('h1, h2').each((_, el) => {
-            const text = $(el).text().trim();
-            const pageTitle = $('title').text().trim();
-            if (text === pageTitle || pageTitle.includes(text) || text.length < 3) {
-                $(el).remove();
-            }
-        });
+            // Remove typical 'Share via' / 'Copy Link' clutter from original sites
+            $clean('div, span, p, button, a').each((_, el) => {
+                const text = $(el).text().toLowerCase().trim();
+                if (text === 'share via' || text === 'copy link' || text.includes('follow us on') || text.includes('sign up for')) {
+                    $(el).remove();
+                }
+            });
 
-        const mainContent = $clean('body').html() || '';
-        const textContent = $clean('body').text().trim().replace(/\s+/g, ' ');
+            // Remove headers that duplicate the title
+            $clean('h1, h2, h3').each((_, el) => {
+                const text = $(el).text().trim();
+                const pageTitle = $('title').text().trim();
+                if (text === pageTitle || pageTitle.includes(text) || text.length < 3) {
+                    $(el).remove();
+                }
+            });
+
+            // Remove all purely empty tags that add whitespace
+            $clean('*').each((_, el) => {
+                if ($(el).children().length === 0 && $(el).text().trim().length === 0) {
+                    $(el).remove();
+                }
+            });
+
+            bestContent = $clean('body').html() || '';
+        }
+
+        const mainContent = bestContent;
+        const textContent = cheerio.load(mainContent).text().trim().replace(/\s+/g, ' ');
 
         const result: ScrapedArticle = {
             title: $('title').text() || '',
