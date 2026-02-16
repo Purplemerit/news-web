@@ -68,15 +68,15 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
         const html = await response.text();
         const $ = cheerio.load(html);
 
-        // Remove extreme junk
+        // 1. Clean obvious junk (non-content)
         $('script, style, nav, footer, header, iframe, noscript, .ads, #ads, aside').remove();
 
-        // SMART EXTRACTION: Find the container with the most text
+        // 2. FIND BEST CONTENT BLOCK
         let bestContent = '';
         let maxTextLength = 0;
 
-        // Try standard containers first
-        const selectors = ['article', '.article-content', '.post-content', '.entry-content', 'main', '#main-content', '.content', '.story-content', '.article__body-text'];
+        // Common article containers
+        const selectors = ['article', '.article-body', '.content', '.post-content', '.entry-content', 'main', '#main-content', '.story-body', '.article__body', '.article-content'];
         selectors.forEach(selector => {
             const el = $(selector);
             if (el.length > 0) {
@@ -88,59 +88,45 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
             }
         });
 
-        // Fallback: search for any div with significant text, but score by density
-        if (maxTextLength < 800) {
-            $('div, section').each((_, el) => {
-                const $el = $(el);
-                if ($el.is('nav, footer, header, aside')) return;
-
-                const text = $el.text().trim();
-                const linkText = $el.find('a').text().trim();
-                const density = text.length > 0 ? (text.length - linkText.length) / text.length : 0;
-
-                if (text.length > maxTextLength && text.length < 30000 && density > 0.5) {
-                    maxTextLength = text.length;
-                    bestContent = $el.html() || '';
-                }
-            });
-        }
-
-        // 2. CLEANUP
-        if (bestContent) {
-            const $clean = cheerio.load(bestContent);
-
-            // Remove typical 'Share via' / 'Copy Link' clutter from original sites
-            $clean('div, span, p, button, a').each((_, el) => {
-                const text = $(el).text().toLowerCase().trim();
-                if (text === 'share via' || text === 'copy link' || text.includes('follow us on') || text.includes('sign up for')) {
-                    $(el).remove();
-                }
-            });
-
-            // Remove headers that duplicate the title
-            $clean('h1, h2, h3').each((_, el) => {
+        // 3. ROBUST FALLBACK: If no selector worked, find the largest div
+        if (maxTextLength < 500) {
+            $('div').each((_, el) => {
                 const text = $(el).text().trim();
-                const pageTitle = $('title').text().trim();
-                if (text === pageTitle || pageTitle.includes(text) || text.length < 3) {
-                    $(el).remove();
+                // Avoid picking up the whole body if it's too large, look for sensible blocks
+                if (text.length > maxTextLength && text.length < 40000) {
+                    maxTextLength = text.length;
+                    bestContent = $(el).html() || '';
                 }
             });
-
-            // Remove all purely empty tags that add whitespace
-            $clean('*').each((_, el) => {
-                if ($(el).children().length === 0 && $(el).text().trim().length === 0) {
-                    $(el).remove();
-                }
-            });
-
-            bestContent = $clean('body').html() || '';
         }
 
-        const mainContent = bestContent;
-        const textContent = cheerio.load(mainContent).text().trim().replace(/\s+/g, ' ');
+        // 4. LAST RESORT: If even that fails, use the whole body
+        if (bestContent.length < 200) {
+            bestContent = $('body').html() || '';
+        }
+
+        // 5. SELECTIVE CLEANUP
+        const $clean = cheerio.load(bestContent);
+
+        // Remove common repetitive garbage labels
+        $clean('div, span, p, a, button').each((_, el) => {
+            const text = $(el).text().trim().toLowerCase();
+            if (text === 'share via' || text === 'copy link' || text.includes('follow us on')) {
+                $(el).remove();
+            }
+        });
+
+        // Remove title duplicates
+        const pageTitle = $('title').text().trim();
+        $clean('h1, h2, h3').each((_, el) => {
+            if ($(el).text().trim() === pageTitle) $(el).remove();
+        });
+
+        const mainContent = $clean('body').html() || '';
+        const textContent = $clean('body').text().trim().replace(/\s+/g, ' ');
 
         const result: ScrapedArticle = {
-            title: $('title').text() || '',
+            title: pageTitle || 'News Article',
             content: mainContent,
             textContent: textContent,
             excerpt: '',
@@ -148,14 +134,13 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
             siteName: url.split('/')[2],
         };
 
-        if (result.textContent.length > 500) {
+        if (result.textContent.length > 300) {
             scraperCache.set(url, { data: result, timestamp: Date.now() });
-            console.log(`✅ Scraped ${result.textContent.length} characters.`);
         }
 
         return result;
     } catch (error: any) {
-        console.error(`Scraper error:`, error.message);
+        console.error(`Scraper failure:`, error.message);
         return null;
     }
 }
