@@ -84,10 +84,26 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
                     <div className={styles.divider}></div>
 
-                    <div className={styles.searchContainer}>
+                    <form
+                        className={styles.searchContainer}
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.currentTarget);
+                            const query = formData.get('search');
+                            if (query) {
+                                window.location.href = `/search?q=${encodeURIComponent(query as string)}`;
+                                onClose();
+                            }
+                        }}
+                    >
                         <Search className={styles.searchIcon} size={18} />
-                        <input type="text" placeholder="Search news" className={styles.searchInput} />
-                    </div>
+                        <input
+                            name="search"
+                            type="text"
+                            placeholder="Search news"
+                            className={styles.searchInput}
+                        />
+                    </form>
 
                     <div className={styles.navSection}>
                         <h2 className={styles.sectionTitle}>Main Navigation</h2>

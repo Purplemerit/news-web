@@ -154,8 +154,8 @@ export default function SignupPage() {
 
             <div className={styles.rightSection}>
                 <img
-                    src="./Frame21214530681.png"
-                    alt="Latest News"
+                    src="/Frame21214530681.png"
+                    alt="Stay Informed"
                     className={styles.authImage}
                 />
             </div>

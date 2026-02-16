@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { getArticleUrl } from '@/lib/articleUtils';
 import { useCountry } from '@/contexts/CountryContext';
 import { NewsArticle } from '@/types/rss';
+import useSWR from 'swr';
+import { NewsSkeleton } from './NewsSkeleton';
+import CopyButton from './CopyButton';
 
 const categoryImages: Record<string, string> = {
   entertainment: 'https://images.unsplash.com/photo-1598899134739-24c46f58b8c0?auto=format&fit=crop&q=80&w=1200',
@@ -71,52 +74,33 @@ interface CategoryPageProps {
   slug: string;
 }
 
+
+const fetcher = (url: string) => fetch(url).then(res => {
+  if (!res.ok) throw new Error('Failed to fetch category feeds');
+  return res.json();
+});
+
 export default function CategoryPage({ slug }: CategoryPageProps) {
   const { countryCode, isLoading: countryLoading } = useCountry();
-  const [articles, setArticles] = useState<NewsArticle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  const category = slugToCategory[slug] || 'news';
+  const { data: articles = [], error, isLoading } = useSWR(
+    !countryLoading ? `/api/country-feeds?country=${countryCode}&category=${category}` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000, // 1 minute
+      fallbackData: []
+    }
+  );
 
   const fallbackImage = categoryImages[slug] || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&q=80&w=1200';
   const categoryName = slug.charAt(0).toUpperCase() + slug.slice(1);
 
-  useEffect(() => {
-    async function loadArticles() {
-      if (countryLoading) return;
-
-      setLoading(true);
-      setError(null);
-      try {
-        const category = slugToCategory[slug] || 'news';
-
-        // Call API route instead of direct RSS parsing
-        const response = await fetch(
-          `/api/country-feeds?country=${countryCode}&category=${category}`
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch category feeds');
-        }
-
-        const fetchedArticles = await response.json();
-        setArticles(fetchedArticles);
-      } catch (error) {
-        console.error('Error loading category articles:', error);
-        setError('Failed to load news. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadArticles();
-  }, [countryCode, slug, countryLoading]);
-
-  if (loading || countryLoading) {
+  if (isLoading || countryLoading) {
     return (
       <div className={styles.container}>
-        <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-          <p style={{ fontSize: '1.2rem', color: '#666' }}>Loading {categoryName} news...</p>
-        </div>
+        <NewsSkeleton />
       </div>
     );
   }
@@ -169,49 +153,52 @@ export default function CategoryPage({ slug }: CategoryPageProps) {
         </p>
 
         <div className={styles.featuredGrid}>
-          <Link
-            href={getArticleUrl(mainArticle)}
-            className={styles.featuredMain}
-            style={{ textDecoration: 'none', color: 'inherit' }}
-          >
-            <div className={styles.featuredImageWrapper}>
-              <img
-                src={getImageUrl(mainArticle.image, fallbackImage)}
-                alt={safeText(mainArticle.title)}
-                className={styles.featuredImage}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  if (target.src !== fallbackImage) {
-                    target.src = fallbackImage;
-                  }
-                }}
-              />
-            </div>
-            <div className={styles.featuredContent}>
-              <div className={styles.metaTags}>
-                <span>{slug}</span>
-                <span>•</span>
-                <span>{formatDate(mainArticle.pubDate)}</span>
+          <div style={{ position: 'relative' }}>
+            <Link
+              href={getArticleUrl(mainArticle)}
+              className={styles.featuredMain}
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
+              <div className={styles.featuredImageWrapper}>
+                <img
+                  src={getImageUrl(mainArticle.image, fallbackImage)}
+                  alt={safeText(mainArticle.title)}
+                  className={styles.featuredImage}
+                />
               </div>
-              <h2 className={styles.featuredTitle}>{safeText(mainArticle.title)}</h2>
-              <p className={styles.featuredExcerpt}>{safeText(mainArticle.description)}</p>
+              <div className={styles.featuredContent}>
+                <div className={styles.metaTags}>
+                  <span>{slug}</span>
+                  <span>•</span>
+                  <span>{formatDate(mainArticle.pubDate)}</span>
+                </div>
+                <h2 className={styles.featuredTitle}>{safeText(mainArticle.title)}</h2>
+                <p className={styles.featuredExcerpt}>{safeText(mainArticle.description)}</p>
+              </div>
+            </Link>
+            <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
+              <CopyButton url={typeof window !== 'undefined' ? window.location.origin + getArticleUrl(mainArticle) : getArticleUrl(mainArticle)} />
             </div>
-          </Link>
+          </div>
 
           <aside className={styles.sidebar}>
             <div className={styles.sidebarBlock}>
               <h3 className={styles.sidebarTitle}>Trending in {categoryName}</h3>
               <div className={styles.trendingList}>
-                {trending.map((article, i) => (
-                  <Link
-                    key={i}
-                    href={getArticleUrl(article)}
-                    className={styles.trendingItem}
-                    style={{ textDecoration: 'none', color: 'inherit' }}
-                  >
-                    <div className={styles.trendingMeta}>{i + 1} • Trending</div>
-                    <h4 className={styles.trendingTitle}>{safeText(article.title)}</h4>
-                  </Link>
+                {trending.map((article: NewsArticle, i: number) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <Link
+                      href={getArticleUrl(article)}
+                      className={styles.trendingItem}
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      <div className={styles.trendingMeta}>{i + 1} • Trending</div>
+                      <h4 className={styles.trendingTitle}>{safeText(article.title)}</h4>
+                    </Link>
+                    <div style={{ position: 'absolute', top: '5px', right: '0' }}>
+                      <CopyButton size={12} url={typeof window !== 'undefined' ? window.location.origin + getArticleUrl(article) : getArticleUrl(article)} />
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -221,32 +208,32 @@ export default function CategoryPage({ slug }: CategoryPageProps) {
 
       <div className={styles.articleGridSection}>
         <div className={styles.grid}>
-          {gridArticles.map((article, i) => (
-            <Link
-              key={i}
-              href={getArticleUrl(article)}
-              className={styles.gridItem}
-              style={{ textDecoration: 'none', color: 'inherit' }}
-            >
-              <div className={styles.gridImageWrapper}>
-                <img
-                  src={getImageUrl(article.image, `https://images.unsplash.com/photo-${1500000000000 + i}?auto=format&fit=crop&w=600&q=80`)}
-                  alt={safeText(article.title)}
-                  className={styles.gridImage}
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = fallbackImage;
-                  }}
-                />
+          {gridArticles.map((article: NewsArticle, i: number) => (
+            <div key={i} style={{ position: 'relative' }}>
+              <Link
+                href={getArticleUrl(article)}
+                className={styles.gridItem}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <div className={styles.gridImageWrapper}>
+                  <img
+                    src={getImageUrl(article.image, `https://images.unsplash.com/photo-${1500000000000 + i}?auto=format&fit=crop&w=600&q=80`)}
+                    alt={safeText(article.title)}
+                    className={styles.gridImage}
+                  />
+                </div>
+                <div className={styles.metaTags}>
+                  <span>{safeText(article.category) || 'News'}</span>
+                  <span>•</span>
+                  <span>{formatDate(article.pubDate)}</span>
+                </div>
+                <h3 className={styles.gridTitle}>{safeText(article.title)}</h3>
+                <p className={styles.gridExcerpt}>{safeText(article.description)}</p>
+              </Link>
+              <div style={{ position: 'absolute', bottom: '15px', right: '0' }}>
+                <CopyButton size={14} url={typeof window !== 'undefined' ? window.location.origin + getArticleUrl(article) : getArticleUrl(article)} />
               </div>
-              <div className={styles.metaTags}>
-                <span>{safeText(article.category) || 'News'}</span>
-                <span>•</span>
-                <span>{formatDate(article.pubDate)}</span>
-              </div>
-              <h3 className={styles.gridTitle}>{safeText(article.title)}</h3>
-              <p className={styles.gridExcerpt}>{safeText(article.description)}</p>
-            </Link>
+            </div>
           ))}
         </div>
       </div>

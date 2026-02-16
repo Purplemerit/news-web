@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { getArticleUrl } from '@/lib/articleUtils';
 import { useCountry } from '@/contexts/CountryContext';
 import { NewsArticle } from '@/types/rss';
+import useSWR from 'swr';
+import { NewsSkeleton } from './NewsSkeleton';
+import CopyButton from './CopyButton';
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&q=80&w=1200";
 
@@ -27,38 +30,30 @@ function safeText(text: any): string {
   return String(text);
 }
 
+
+const fetcher = (url: string) => fetch(url).then(res => {
+  if (!res.ok) throw new Error('Failed to fetch feeds');
+  return res.json();
+});
+
 export default function HomePage() {
   const { countryCode, isLoading: countryLoading } = useCountry();
-  const [articles, setArticles] = useState<Record<string, NewsArticle[]>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // Use SWR for better caching and performance
+  const { data: articles = {}, error, isLoading } = useSWR(
+    !countryLoading ? `/api/country-feeds?country=${countryCode}&multiple=homepage,news,business,sports,technology,entertainment,politics,world,health` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000, // 1 minute
+      fallbackData: {}
+    }
+  );
 
   // Newsletter states
   const [subEmail, setSubEmail] = useState('');
   const [subStatus, setSubStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
   const [subLoading, setSubLoading] = useState(false);
-
-  useEffect(() => {
-    async function loadArticles() {
-      if (countryLoading) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fetch(
-          `/api/country-feeds?country=${countryCode}&multiple=homepage,news,business,sports,technology,entertainment,politics,world,health`
-        );
-        if (!response.ok) throw new Error('Failed to fetch feeds');
-        const feeds = await response.json();
-        setArticles(feeds);
-      } catch (error) {
-        console.error('Error loading articles:', error);
-        setError('Failed to load news. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadArticles();
-  }, [countryCode, countryLoading]);
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,14 +83,10 @@ export default function HomePage() {
     }
   };
 
-  if (loading || countryLoading) {
+  if (isLoading || countryLoading) {
     return (
       <div className={styles.page}>
-        <main className={styles.content}>
-          <div style={{ padding: '100px 20px', textAlign: 'center' }}>
-            <p style={{ fontSize: '1.2rem', color: '#666', fontFamily: 'var(--font-fraunces)' }}>Updating your daily briefing...</p>
-          </div>
-        </main>
+        <NewsSkeleton />
       </div>
     );
   }
@@ -129,27 +120,37 @@ export default function HomePage() {
         {/* Hero Section */}
         <section className={styles.heroSection}>
           <div className={styles.heroMain}>
-            <Link href={heroArticle ? getArticleUrl(heroArticle) : '#'} className={styles.heroMainArticle}>
-              <div className={styles.heroMainImageWrapper}>
-                <img src={getImageUrl(heroArticle?.image, FALLBACK_IMAGE)} alt="" className={styles.heroMainImage} />
+            <div className={styles.heroMainArticle} style={{ position: 'relative' }}>
+              <Link href={heroArticle ? getArticleUrl(heroArticle) : '#'} className={styles.heroLink}>
+                <div className={styles.heroMainImageWrapper}>
+                  <img src={getImageUrl(heroArticle?.image, FALLBACK_IMAGE)} alt="" className={styles.heroMainImage} />
+                </div>
+                <span className={styles.category}>{safeText(heroArticle?.category).toUpperCase() || 'TOP STORY'}</span>
+                <h1 className={styles.heroMainTitle}>{safeText(heroArticle?.title)}</h1>
+                <p className={styles.heroMainDescription}>{safeText(heroArticle?.description)}</p>
+                <span className={styles.meta}>{formatDate(heroArticle?.pubDate)} • By Editorial Team</span>
+              </Link>
+              <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
+                <CopyButton url={heroArticle ? (typeof window !== 'undefined' ? window.location.origin + getArticleUrl(heroArticle) : getArticleUrl(heroArticle)) : ''} />
               </div>
-              <span className={styles.category}>{safeText(heroArticle?.category).toUpperCase() || 'TOP STORY'}</span>
-              <h1 className={styles.heroMainTitle}>{safeText(heroArticle?.title)}</h1>
-              <p className={styles.heroMainDescription}>{safeText(heroArticle?.description)}</p>
-              <span className={styles.meta}>{formatDate(heroArticle?.pubDate)} • By Editorial Team</span>
-            </Link>
+            </div>
           </div>
           <div className={styles.heroSidebar}>
             {sidebarHero.map((art, i) => (
-              <Link key={i} href={art ? getArticleUrl(art) : '#'} className={styles.sidebarItem}>
-                <div className={styles.sidebarImageWrapper}>
-                  <img src={getImageUrl(art?.image, FALLBACK_IMAGE)} alt="" className={styles.sidebarImage} />
+              <div key={i} className={styles.sidebarItemContainer}>
+                <Link href={art ? getArticleUrl(art) : '#'} className={styles.sidebarItem}>
+                  <div className={styles.sidebarImageWrapper}>
+                    <img src={getImageUrl(art?.image, FALLBACK_IMAGE)} alt="" className={styles.sidebarImage} />
+                  </div>
+                  <div className={styles.sidebarContent}>
+                    <h3 className={styles.sidebarTitle}>{safeText(art?.title)}</h3>
+                    <span className={styles.meta}>{formatDate(art?.pubDate)}</span>
+                  </div>
+                </Link>
+                <div className={styles.itemCopyBtn}>
+                  <CopyButton size={14} url={art ? (typeof window !== 'undefined' ? window.location.origin + getArticleUrl(art) : getArticleUrl(art)) : ''} />
                 </div>
-                <div className={styles.sidebarContent}>
-                  <h3 className={styles.sidebarTitle}>{safeText(art?.title)}</h3>
-                  <span className={styles.meta}>{formatDate(art?.pubDate)}</span>
-                </div>
-              </Link>
+              </div>
             ))}
           </div>
         </section>
@@ -161,22 +162,32 @@ export default function HomePage() {
             <Link href="/category/news" className={styles.viewAllBtn}>View All</Link>
           </div>
           <div className={styles.latestNewsGrid}>
-            <Link href={latestMain ? getArticleUrl(latestMain) : '#'} className={styles.latestLargeCard}>
-              <div className={styles.latestLargeImageWrapper}>
-                <img src={getImageUrl(latestMain?.image, FALLBACK_IMAGE)} alt="" className={styles.latestLargeImage} />
+            <div style={{ position: 'relative' }}>
+              <Link href={latestMain ? getArticleUrl(latestMain) : '#'} className={styles.latestLargeCard}>
+                <div className={styles.latestLargeImageWrapper}>
+                  <img src={getImageUrl(latestMain?.image, FALLBACK_IMAGE)} alt="" className={styles.latestLargeImage} />
+                </div>
+                <span className={styles.category}>{safeText(latestMain?.category) || 'NEWS'}</span>
+                <h3 className={styles.latestLargeTitle}>{safeText(latestMain?.title)}</h3>
+              </Link>
+              <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+                <CopyButton url={latestMain ? (typeof window !== 'undefined' ? window.location.origin + getArticleUrl(latestMain) : getArticleUrl(latestMain)) : ''} />
               </div>
-              <span className={styles.category}>{safeText(latestMain?.category) || 'NEWS'}</span>
-              <h3 className={styles.latestLargeTitle}>{safeText(latestMain?.title)}</h3>
-            </Link>
+            </div>
             <div className={styles.latestSmallGrid}>
               {latestGrid.map((art, i) => (
-                <Link key={i} href={art ? getArticleUrl(art) : '#'} className={styles.latestSmallCard}>
-                  <div className={styles.latestSmallImageWrapper}>
-                    <img src={getImageUrl(art?.image, FALLBACK_IMAGE)} alt="" className={styles.latestSmallImage} />
+                <div key={i} style={{ position: 'relative' }}>
+                  <Link href={art ? getArticleUrl(art) : '#'} className={styles.latestSmallCard}>
+                    <div className={styles.latestSmallImageWrapper}>
+                      <img src={getImageUrl(art?.image, FALLBACK_IMAGE)} alt="" className={styles.latestSmallImage} />
+                    </div>
+                    <h3 className={styles.latestSmallTitle}>{safeText(art?.title)}</h3>
+                    <span className={styles.meta}>{formatDate(art?.pubDate)}</span>
+                  </Link>
+                  <div style={{ position: 'absolute', top: '5px', right: '5px' }}>
+                    <CopyButton size={12} url={art ? (typeof window !== 'undefined' ? window.location.origin + getArticleUrl(art) : getArticleUrl(art)) : ''} />
                   </div>
-                  <h3 className={styles.latestSmallTitle}>{safeText(art?.title)}</h3>
-                  <span className={styles.meta}>{formatDate(art?.pubDate)}</span>
-                </Link>
+                </div>
               ))}
             </div>
           </div>
@@ -190,14 +201,19 @@ export default function HomePage() {
           </div>
           <div className={styles.secondaryStoriesGrid}>
             {secondaryStories.map((art, i) => (
-              <Link key={i} href={art ? getArticleUrl(art) : '#'} className={styles.secondaryCard}>
-                <img src={getImageUrl(art?.image, FALLBACK_IMAGE)} alt="" className={styles.secondaryImage} />
-                <div className={styles.secondaryOverlay}>
-                  <span className={styles.category} style={{ color: '#fff' }}>{safeText(art?.category) || 'FEATURED'}</span>
-                  <h3 className={styles.secondaryCardTitle}>{safeText(art?.title)}</h3>
-                  <span className={styles.meta} style={{ color: 'rgba(255,255,255,0.7)' }}>{formatDate(art?.pubDate)}</span>
+              <div key={i} style={{ position: 'relative' }}>
+                <Link href={art ? getArticleUrl(art) : '#'} className={styles.secondaryCard}>
+                  <img src={getImageUrl(art?.image, FALLBACK_IMAGE)} alt="" className={styles.secondaryImage} />
+                  <div className={styles.secondaryOverlay}>
+                    <span className={styles.category} style={{ color: '#fff' }}>{safeText(art?.category) || 'FEATURED'}</span>
+                    <h3 className={styles.secondaryCardTitle}>{safeText(art?.title)}</h3>
+                    <span className={styles.meta} style={{ color: 'rgba(255,255,255,0.7)' }}>{formatDate(art?.pubDate)}</span>
+                  </div>
+                </Link>
+                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}>
+                  <CopyButton url={art ? (typeof window !== 'undefined' ? window.location.origin + getArticleUrl(art) : getArticleUrl(art)) : ''} />
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         </section>
@@ -243,18 +259,23 @@ export default function HomePage() {
                 </Link>
               ))}
             </div>
-            <Link href={worldFeatured ? getArticleUrl(worldFeatured) : '#'} className={styles.worldFeatured}>
-              <div className={styles.worldFeaturedImageWrapper}>
-                <img src={getImageUrl(worldFeatured?.image, FALLBACK_IMAGE)} alt="" className={styles.worldFeaturedImage} />
+            <div style={{ position: 'relative' }}>
+              <Link href={worldFeatured ? getArticleUrl(worldFeatured) : '#'} className={styles.worldFeatured}>
+                <div className={styles.worldFeaturedImageWrapper}>
+                  <img src={getImageUrl(worldFeatured?.image, FALLBACK_IMAGE)} alt="" className={styles.worldFeaturedImage} />
+                </div>
+                <h3 className={styles.worldFeaturedTitle}>{safeText(worldFeatured?.title)}</h3>
+                <p className={styles.heroMainDescription}>{safeText(worldFeatured?.description)}</p>
+                <div className={styles.authorLine}>
+                  <img src={`https://i.pravatar.cc/150?u=${worldFeatured?.title}`} alt="" className={styles.authorAvatar} />
+                  <span className={styles.meta} style={{ color: '#000', fontWeight: 'bold' }}>Editorial Team</span>
+                  <span className={styles.meta}>{formatDate(worldFeatured?.pubDate)}</span>
+                </div>
+              </Link>
+              <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
+                <CopyButton url={worldFeatured ? (typeof window !== 'undefined' ? window.location.origin + getArticleUrl(worldFeatured) : getArticleUrl(worldFeatured)) : ''} />
               </div>
-              <h3 className={styles.worldFeaturedTitle}>{safeText(worldFeatured?.title)}</h3>
-              <p className={styles.heroMainDescription}>{safeText(worldFeatured?.description)}</p>
-              <div className={styles.authorLine}>
-                <img src={`https://i.pravatar.cc/150?u=${worldFeatured?.title}`} alt="" className={styles.authorAvatar} />
-                <span className={styles.meta} style={{ color: '#000', fontWeight: 'bold' }}>Editorial Team</span>
-                <span className={styles.meta}>{formatDate(worldFeatured?.pubDate)}</span>
-              </div>
-            </Link>
+            </div>
           </div>
         </section>
 
@@ -262,7 +283,8 @@ export default function HomePage() {
         <section className={styles.subscribeSection}>
           <img src="https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&q=80&w=2000" alt="" className={styles.subscribeBg} />
           <div className={styles.subscribeContent}>
-            <h2 className={styles.subscribeTitle}>Stay informed with our latest news and updates.</h2>
+            <h2 className={styles.subscribeTitle}>The stories that matter, delivered daily.</h2>
+            <p className={styles.subscribeSubtitle}>Join 50,000+ readers who start their day with True Line News. Essential reporting, expert analysis, and a world of perspective.</p>
             <form className={styles.subscribeForm} onSubmit={handleSubscribe}>
               <input
                 type="email"

@@ -135,24 +135,24 @@ function LoginContent() {
                     <div className={styles.socialBtns}>
                         <button onClick={() => handleSocialLogin('google')} className={styles.socialBtn}>
                             <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" />
-                            <span>Signup with Google</span>
+                            <span>Continue with Google</span>
                         </button>
                         <button onClick={() => handleSocialLogin('apple')} className={styles.socialBtn}>
                             <img src="https://www.svgrepo.com/show/511330/apple-173.svg" alt="Apple" />
-                            <span>Sign up with Apple</span>
+                            <span>Continue with Apple</span>
                         </button>
                     </div>
 
                     <p className={styles.footer}>
-                        Don't have an account yet ? <Link href="/signup" className={styles.footerLink}>Create Account</Link>
+                        Don't have an account yet? <Link href="/signup" className={styles.footerLink}>Create Account</Link>
                     </p>
                 </div>
             </div>
 
             <div className={styles.rightSection}>
                 <img
-                    src="./Frame21214530682.png"
-                    alt="Premium Lifestyle"
+                    src="/Frame21214530682.png"
+                    alt="Premium News Experience"
                     className={styles.authImage}
                 />
             </div>
