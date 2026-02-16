@@ -235,10 +235,18 @@ export async function fetchMultipleFeeds(categories: FeedCategory[]): Promise<Re
   }, {} as Record<FeedCategory, RSSFeed>);
 }
 
+const urlCache = new Map<string, { data: RSSFeed; timestamp: number }>();
+
 /**
  * Fetch RSS feed from a specific URL (for multi-tenant feeds)
  */
 export async function fetchRSSFromUrl(url: string): Promise<RSSFeed> {
+  // Check cache
+  const cached = urlCache.get(url);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data;
+  }
+
   try {
     const feed = await parser.parseURL(url);
 
@@ -264,9 +272,21 @@ export async function fetchRSSFromUrl(url: string): Promise<RSSFeed> {
       link: feed.link,
     };
 
+    // Update cache
+    urlCache.set(url, {
+      data: rssFeed,
+      timestamp: Date.now(),
+    });
+
     return rssFeed;
   } catch (error) {
     console.error(`Error fetching RSS feed from ${url}:`, error);
+
+    // Return cached data if available, even if expired
+    if (cached) {
+      return cached.data;
+    }
+
     return {
       items: [],
       title: 'News',
