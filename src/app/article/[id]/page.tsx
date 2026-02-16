@@ -13,38 +13,34 @@ interface PageProps {
   searchParams: Promise<{ [key: string]: string | undefined }>;
 }
 
+export const dynamic = 'force-dynamic';
+
 const safeParam = (value: any, defaultValue: string = ''): string => {
   if (!value) return defaultValue;
+  if (Array.isArray(value)) value = value[0];
   if (typeof value === 'string') {
-    try { return decodeURIComponent(value); } catch { return value; }
+    try {
+      // Only decode if it looks encoded (contains %)
+      return value.includes('%') ? decodeURIComponent(value) : value;
+    } catch { return value; }
   }
-  if (typeof value === 'object') {
-    if (value._ && typeof value._ === 'string') return String(value._);
-    try { return String(value); } catch { return defaultValue; }
-  }
-  return defaultValue;
+  return String(value || defaultValue);
 };
 
-export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const search = await searchParams;
   const title = safeParam(search.title, 'News Article');
   const description = safeParam(search.content, '').substring(0, 160);
   const image = safeParam(search.image);
 
   return {
-    title: `${title} | NewsWeb`,
+    title: `${title} | True Line News`,
     description,
     openGraph: {
       title,
       description,
       images: image ? [image] : [],
       type: 'article',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: image ? [image] : [],
     },
   };
 }
@@ -65,21 +61,32 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
     notFound();
   }
 
+  // Construct current URL for sharing/copying
+  // On Vercel, we can use headers to get the host if needed, 
+  // but since it's a dynamic route we can just provide the path
+  const currentPath = `/article/${id}?${new URLSearchParams(search as any).toString()}`;
+  const baseUrl = process.env.NEXTAUTH_URL || '';
+  const fullUrl = baseUrl ? `${baseUrl}${currentPath}` : currentPath;
+
   // Fetch full content if possible
   let fullContent = '';
   let isFullContent = false;
-  let wordCount = snippet.split(/\s+/).length;
+  let wordCount = snippet ? snippet.split(/\s+/).length : 0;
 
   if (source) {
-    const scraped = await scrapeFullArticle(source);
-    if (scraped && scraped.content) {
-      fullContent = scraped.content;
-      isFullContent = true;
-      wordCount = scraped.textContent.split(/\s+/).length;
+    try {
+      const scraped = await scrapeFullArticle(source);
+      if (scraped && scraped.content) {
+        fullContent = scraped.content;
+        isFullContent = true;
+        wordCount = scraped.textContent ? scraped.textContent.split(/\s+/).length : wordCount;
+      }
+    } catch (err) {
+      console.error('Error in article scraping:', err);
     }
   }
 
-  const readingTime = Math.ceil(wordCount / 200);
+  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
 
   return (
     <>
@@ -92,9 +99,11 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
         <article className={styles.article}>
           <div className={styles.header}>
             <div className={styles.category}>{category}</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px' }}>
               <h1 className={styles.title}>{title}</h1>
-              <CopyButton url={typeof window !== 'undefined' ? window.location.href : ''} size={20} />
+              <div style={{ flexShrink: 0 }}>
+                <CopyButton url={fullUrl} size={20} />
+              </div>
             </div>
 
             <div className={styles.articleStats}>
@@ -116,7 +125,7 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
               </div>
               <div className={styles.shareIconGroup}>
                 <Share2 size={16} />
-                <SocialShare url={typeof window !== 'undefined' ? window.location.href : ''} title={title} />
+                <SocialShare url={fullUrl} title={title} />
               </div>
             </div>
           </div>
@@ -146,12 +155,12 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
 
             <div className={styles.articleShareBottom}>
               <h3>Share this story</h3>
-              <SocialShare url={typeof window !== 'undefined' ? window.location.href : ''} title={title} />
+              <SocialShare url={fullUrl} title={title} />
             </div>
 
             {source && (
               <div className={styles.attribution}>
-                <p>Original Source: {sourceName}</p>
+                <p>Original Source: <a href={source} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>{sourceName}</a></p>
               </div>
             )}
           </div>

@@ -30,10 +30,6 @@ export const metadata: Metadata = {
   description: "Your daily source for the latest news",
 };
 
-// ... existing imports
-
-// ... existing imports
-
 export default function RootLayout({
   children,
 }: Readonly<{
