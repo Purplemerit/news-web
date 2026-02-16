@@ -20,6 +20,7 @@ export async function rephraseArticle(
   excerpt?: string
 ): Promise<RephraseResult> {
   try {
+    // Use gemini-1.5-flash as it's the most stable and cost-effective 1.5 model
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     // Rephrase title
@@ -107,35 +108,33 @@ export async function expandNewsSnippet(
   category?: string
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('GEMINI_API_KEY is missing, returning snippet as fallback');
-    return snippet ? `<p>${snippet}</p>` : '';
+  if (!apiKey) return snippet ? `<p>${snippet}</p>` : '';
+
+  const modelsToTry = ['gemini-1.5-flash', 'gemini-pro'];
+
+  for (const modelName of modelsToTry) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const prompt = `
+        You are a professional journalist. Write a comprehensive 4-6 paragraph news article based on this headline and snippet.
+        Headline: ${title}
+        Snippet: ${snippet}
+        Category: ${category || 'General News'}
+        Instructions: Write at least 350 words. Format as clean HTML paragraphs (<p>). Do not include any meta-talk or filler.
+        Return ONLY the HTML.
+      `;
+
+      const result = await model.generateContent(prompt);
+      const content = result.response.text().trim();
+      if (content) {
+        return content.replace(/```html|```/g, '').trim();
+      }
+    } catch (error: any) {
+      console.warn(`Gemini model ${modelName} failed:`, error.message);
+      // Continue to next model if this one fails
+    }
   }
 
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-    const prompt = `
-      You are a professional journalist. Write a comprehensive 4-6 paragraph news article based on this headline and snippet.
-      
-      Headline: ${title}
-      Snippet: ${snippet}
-      Category: ${category || 'General News'}
-      
-      Instructions:
-      1. Write at least 350-500 words.
-      2. Format as clean HTML paragraphs (<p>).
-      3. Do not include any meta-talk or filler.
-      
-      Return ONLY the HTML.
-    `;
-
-    const result = await model.generateContent(prompt);
-    const content = result.response.text().trim();
-
-    return content.replace(/```html|```/g, '').trim();
-  } catch (error: any) {
-    console.error('Gemini expansion failed:', error.message);
-    return snippet ? `<p>${snippet}</p><p><em>(Note: AI enhancement unavailable - ${error.message})</em></p>` : '';
-  }
+  // If all models fail, just return the snippet gracefully
+  return snippet ? `<p>${snippet}</p>` : '';
 }
