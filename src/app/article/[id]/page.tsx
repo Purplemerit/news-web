@@ -92,14 +92,14 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
       const textOnly = scraped?.textContent || '';
       const paragraphCount = scraped?.content?.split('</p>').length || 0;
 
-      // REQUIREMENT: Must be >1400 characters of clean text OR >4 paragraphs
-      if (scraped && textOnly.length > 1400 && paragraphCount >= 4) {
+      // REQUIREMENT: Lowered to 800 chars to ensure content visibility
+      if (scraped && textOnly.length > 800 && paragraphCount >= 3) {
         console.log(`✅ Scraped content accepted (${textOnly.length} chars)`);
         fullContent = scraped.content;
         isFullContent = true;
         wordCount = textOnly.trim().split(/\s+/).length;
       } else {
-        console.log(`⚠️ Scraped content insufficient (${textOnly.length} chars), triggering AI expansion...`);
+        console.log(`⚠️ Scraped content thin (${textOnly.length} chars), using AI expansion...`);
         const expanded = await expandNewsSnippet(displayTitle, snippet, category);
         fullContent = expanded;
         isFullContent = true;
