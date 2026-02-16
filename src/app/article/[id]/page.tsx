@@ -2,6 +2,7 @@ import styles from './Article.module.css';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { scrapeFullArticle } from '@/lib/scraper';
+import { expandNewsSnippet } from '@/lib/geminiService';
 import SocialShare from '@/components/SocialShare';
 import CopyButton from '@/components/CopyButton';
 import ReadingProgress from '@/components/ReadingProgress';
@@ -71,19 +72,37 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
   // Fetch full content if possible
   let fullContent = '';
   let isFullContent = false;
+  let isAiEnhanced = false;
   let wordCount = snippet ? snippet.split(/\s+/).length : 0;
 
   if (source) {
     try {
       const scraped = await scrapeFullArticle(source);
-      if (scraped && scraped.content) {
+      if (scraped && scraped.content && scraped.content.length > 800) {
         fullContent = scraped.content;
         isFullContent = true;
         wordCount = scraped.textContent ? scraped.textContent.split(/\s+/).length : wordCount;
+      } else {
+        // If scraping fails or content is too short, use Gemini to expand the snippet
+        console.log('Scraping returned limited content, expanding with AI...');
+        fullContent = await expandNewsSnippet(title, snippet, category);
+        isFullContent = true;
+        isAiEnhanced = true;
+        wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
       }
     } catch (err) {
-      console.error('Error in article scraping:', err);
+      console.error('Error in article scraping, falling back to AI expansion:', err);
+      fullContent = await expandNewsSnippet(title, snippet, category);
+      isFullContent = true;
+      isAiEnhanced = true;
+      wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
     }
+  } else {
+    // No source URL, just expand the snippet we have
+    fullContent = await expandNewsSnippet(title, snippet, category);
+    isFullContent = true;
+    isAiEnhanced = true;
+    wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
   }
 
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
@@ -130,16 +149,21 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
             </div>
           </div>
 
-          {image && !isFullContent && (
+          {image && !isAiEnhanced && (
             <div className={styles.imageWrapper}>
               <img src={image} alt={title} className={styles.image} />
             </div>
           )}
 
           <div className={styles.content}>
-            {isFullContent && (
+            {isAiEnhanced ? (
+              <div className={styles.fullStoryBadge} style={{ backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd' }}>
+                AI Enhanced Report
+              </div>
+            ) : isFullContent ? (
               <div className={styles.fullStoryBadge}>Full Story Retrieved</div>
-            )}
+            ) : null}
+
             {isFullContent ? (
               <div
                 className={styles.articleBody}
