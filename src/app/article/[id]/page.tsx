@@ -16,23 +16,21 @@ interface PageProps {
 
 export const dynamic = 'force-dynamic';
 
-const safeParam = (value: any, defaultValue: string = ''): string => {
-  if (!value) return defaultValue;
-  if (Array.isArray(value)) value = value[0];
-  if (typeof value === 'string') {
-    try {
-      // Only decode if it looks encoded (contains %)
-      return value.includes('%') ? decodeURIComponent(value) : value;
-    } catch { return value; }
+function decodeParam(val: any, fallback = ''): string {
+  if (!val) return fallback;
+  const str = Array.isArray(val) ? String(val[0]) : String(val);
+  try {
+    return str.includes('%') ? decodeURIComponent(str) : str;
+  } catch {
+    return str;
   }
-  return String(value || defaultValue);
-};
+}
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const search = await searchParams;
-  const title = safeParam(search.title, 'News Article');
-  const description = safeParam(search.content, '').substring(0, 160);
-  const image = safeParam(search.image);
+  const title = decodeParam(search.title, 'News Article');
+  const description = decodeParam(search.content || search.snippet, '').substring(0, 160);
+  const image = decodeParam(search.image);
 
   return {
     title: `${title} | True Line News`,
@@ -50,26 +48,33 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const search = await searchParams;
 
-  const title = safeParam(search.title);
-  const image = safeParam(search.image);
-  const snippet = safeParam(search.content);
-  const date = safeParam(search.date);
-  const category = safeParam(search.category, 'News');
-  const source = safeParam(search.source);
-  const sourceName = safeParam(search.sourceName, 'Original Source');
+  // Robust parameter extraction
+  const title = decodeParam(search.title);
+  const image = decodeParam(search.image);
+  const snippet = decodeParam(search.content || search.snippet);
+  const date = decodeParam(search.date);
+  const category = decodeParam(search.category, 'News');
+  const source = decodeParam(search.source);
+  const sourceName = decodeParam(search.sourceName, 'Original Source');
 
   if (!title) {
     notFound();
   }
 
-  // Construct current URL for sharing/copying
-  // On Vercel, we can use headers to get the host if needed, 
-  // but since it's a dynamic route we can just provide the path
-  const currentPath = `/article/${id}?${new URLSearchParams(search as any).toString()}`;
-  const baseUrl = process.env.NEXTAUTH_URL || '';
+  // Build clean sharing URL
+  const shareParams = new URLSearchParams();
+  if (title) shareParams.set('title', title);
+  if (image) shareParams.set('image', image);
+  if (snippet) shareParams.set('content', snippet);
+  if (date) shareParams.set('date', date);
+  if (category) shareParams.set('category', category);
+  if (source) shareParams.set('source', source);
+  if (sourceName) shareParams.set('sourceName', sourceName);
+
+  const currentPath = `/article/${id}?${shareParams.toString()}`;
+  const baseUrl = process.env.NEXTAUTH_URL || (typeof window !== 'undefined' ? window.location.origin : '');
   const fullUrl = baseUrl ? `${baseUrl}${currentPath}` : currentPath;
 
-  // Fetch full content if possible
   let fullContent = '';
   let isFullContent = false;
   let isAiEnhanced = false;
@@ -83,22 +88,19 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
         isFullContent = true;
         wordCount = scraped.textContent ? scraped.textContent.split(/\s+/).length : wordCount;
       } else {
-        // If scraping fails or content is too short, use Gemini to expand the snippet
-        console.log('Scraping returned limited content, expanding with AI...');
         fullContent = await expandNewsSnippet(title, snippet, category);
         isFullContent = true;
         isAiEnhanced = true;
         wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
       }
     } catch (err) {
-      console.error('Error in article scraping, falling back to AI expansion:', err);
+      console.error('Scraping error, falling back to AI:', err);
       fullContent = await expandNewsSnippet(title, snippet, category);
       isFullContent = true;
       isAiEnhanced = true;
       wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
     }
-  } else {
-    // No source URL, just expand the snippet we have
+  } else if (snippet) {
     fullContent = await expandNewsSnippet(title, snippet, category);
     isFullContent = true;
     isAiEnhanced = true;
@@ -118,20 +120,20 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
         <article className={styles.article}>
           <div className={styles.header}>
             <div className={styles.category}>{category}</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '24px' }}>
               <h1 className={styles.title}>{title}</h1>
-              <div style={{ flexShrink: 0 }}>
+              <div style={{ flexShrink: 0, marginTop: '8px' }}>
                 <CopyButton url={fullUrl} size={20} />
               </div>
             </div>
 
             <div className={styles.articleStats}>
               <div className={styles.statItem}>
-                <Clock size={14} />
+                <Clock size={16} />
                 <span>{readingTime} min read</span>
               </div>
               <div className={styles.statItem}>
-                <BookOpen size={14} />
+                <BookOpen size={16} />
                 <span>{wordCount} words</span>
               </div>
             </div>
@@ -143,13 +145,12 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
                 <span className={styles.source}>{sourceName}</span>
               </div>
               <div className={styles.shareIconGroup}>
-                <Share2 size={16} />
                 <SocialShare url={fullUrl} title={title} />
               </div>
             </div>
           </div>
 
-          {image && !isAiEnhanced && (
+          {!isAiEnhanced && image && (
             <div className={styles.imageWrapper}>
               <img src={image} alt={title} className={styles.image} />
             </div>
@@ -157,7 +158,7 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
 
           <div className={styles.content}>
             {isAiEnhanced ? (
-              <div className={styles.fullStoryBadge} style={{ backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd' }}>
+              <div className={styles.fullStoryBadge} style={{ background: '#f0f9ff', color: '#0369a1', borderColor: '#bae6fd' }}>
                 AI Enhanced Report
               </div>
             ) : isFullContent ? (
@@ -171,9 +172,9 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
               />
             ) : (
               <div className={styles.articleBody}>
-                {snippet.split('\n').map((para, i) => (
+                {snippet ? snippet.split('\n').map((para, i) => (
                   para.trim() && <p key={i} className={styles.paragraph}>{para.trim()}</p>
-                ))}
+                )) : <p>Article content unavailable.</p>}
               </div>
             )}
 
