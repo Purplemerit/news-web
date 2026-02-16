@@ -57,6 +57,11 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
   const source = decodeParam(search.source);
   const sourceName = decodeParam(search.sourceName, 'Original Source');
 
+  // Clean title (remove site names like "| Hindustan Times" or " - The Hindu")
+  let displayTitle = title;
+  if (displayTitle.includes(' | ')) displayTitle = displayTitle.split(' | ')[0];
+  if (displayTitle.includes(' - ')) displayTitle = displayTitle.split(' - ')[0];
+
   if (!title) {
     notFound();
   }
@@ -83,40 +88,42 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
   if (source) {
     try {
       const scraped = await scrapeFullArticle(source);
-      // STRICT CHECK: Only consider it "Full Story" if we got at least 600 characters of actual text.
-      // Many sites return 1000s of characters of HTML garbage but only 200 chars of text.
-      if (scraped && scraped.textContent && scraped.textContent.trim().length > 600) {
+
+      // VERY STRICT CHECK: Many sites return junk. 
+      // We only accept it if it's genuinely long (>1500 chars of text) or has many paragraphs.
+      const textOnly = scraped?.textContent || '';
+      const paragraphCount = scraped?.content?.split('</p>').length || 0;
+
+      if (scraped && textOnly.length > 1500 && paragraphCount >= 4) {
+        console.log(`✅ Scraped content looks high quality (${textOnly.length} chars, ${paragraphCount} paras)`);
         fullContent = scraped.content;
         isFullContent = true;
-        wordCount = scraped.textContent.trim().split(/\s+/).length;
-        console.log(`✅ Original content accepted: ${scraped.textContent.length} chars`);
+        wordCount = textOnly.trim().split(/\s+/).length;
       } else {
-        console.log(`⚠️ Original content too short (${scraped?.textContent?.length || 0} chars), expanding with AI...`);
-        const expanded = await expandNewsSnippet(title, snippet, category);
+        console.log(`⚠️ Scraped content too short or poor quality, forcing AI expansion...`);
+        const expanded = await expandNewsSnippet(displayTitle, snippet, category);
         fullContent = expanded;
         isFullContent = true;
-        // Check if expansion actually worked (is it longer than the snippet?)
-        isAiEnhanced = expanded.replace(/<[^>]*>/g, '').length > (snippet?.length || 0) + 100;
+        isAiEnhanced = true; // Force badge for AI expanded short stories
         wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
       }
     } catch (err) {
       console.error('Scraping error, falling back to AI:', err);
-      const expanded = await expandNewsSnippet(title, snippet, category);
+      const expanded = await expandNewsSnippet(displayTitle, snippet, category);
       fullContent = expanded;
       isFullContent = true;
-      isAiEnhanced = expanded.replace(/<[^>]*>/g, '').length > (snippet?.length || 0) + 100;
+      isAiEnhanced = true;
       wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
     }
   } else if (snippet) {
-    console.log('No source URL, expanding snippet with AI...');
-    const expanded = await expandNewsSnippet(title, snippet, category);
+    const expanded = await expandNewsSnippet(displayTitle, snippet, category);
     fullContent = expanded;
     isFullContent = true;
-    isAiEnhanced = expanded.replace(/<[^>]*>/g, '').length > (snippet?.length || 0) + 100;
+    isAiEnhanced = true;
     wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
   }
 
-  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+  const readingTime = Math.max(2, Math.ceil(wordCount / 180)); // Slightly slower reading speed for more realistic time
 
   return (
     <>

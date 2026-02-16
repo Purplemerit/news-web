@@ -124,20 +124,22 @@ export async function expandNewsSnippet(
     try {
       const model = genAI.getGenerativeModel({ model: modelName });
       const prompt = `
-        You are a top-tier news journalist. Expand this short news snippet into a comprehensive, detailed, and professional news article.
+        You are a senior investigative journalist writing for a premier news organization. 
+        I need you to transform this short news brief into a COMPREHENSIVE, FULL-LENGTH news article of 400 to 600 words.
         
         Headline: ${title}
-        Original Snippet: ${snippet}
+        Original Brief: ${snippet}
         Category: ${category || 'General News'}
         
-        Instructions:
-        1. Write a MINIMUM of 400-600 words.
-        2. Provide deep context, historical background (if applicable), and analysis.
-        3. Maintain a formal journalistic tone throughout.
-        4. Format the article with clear HTML <p> tags and <h3> headings for different sections.
-        5. DO NOT mention you are an AI or that you are expanding a text.
+        Detailed Instructions:
+        1. **Expansion**: Expand the brief into a long-form report with at least 5-7 detailed paragraphs.
+        2. **Context**: Add background context, historical relevance, or broader implications of this news.
+        3. **Structure**: Use a formal journalistic structure (Lede, Body paragraphs with supporting details, and Conclusion).
+        4. **Tone**: Maintain a strictly professional, neutral, and authoritative news tone.
+        5. **Formatting**: Return ONLY clean HTML. Use <p> for paragraphs and <h3> for insightful subheadings.
+        6. **Length Requirement**: It is CRITICAL that the article is long and detailed. Aim for 500 words.
         
-        Return ONLY the clean HTML article.
+        Return ONLY the HTML article. No meta-commentary.
       `;
 
       const result = await model.generateContent(prompt);
