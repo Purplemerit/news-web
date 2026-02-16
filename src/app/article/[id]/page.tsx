@@ -48,7 +48,7 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const search = await searchParams;
 
-  // Robust parameter extraction
+  // Robust parameter extraction first
   const title = decodeParam(search.title);
   const image = decodeParam(search.image);
   const snippet = decodeParam(search.content || search.snippet);
@@ -89,22 +89,22 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
     try {
       const scraped = await scrapeFullArticle(source);
 
-      // VERY STRICT CHECK: Many sites return junk. 
-      // We only accept it if it's genuinely long (>1500 chars of text) or has many paragraphs.
+      // ULTRA-STRICT CHECK: Only accept scraped content if it's genuinely Long (>2000 chars)
+      // If it's shorter, we FORCE AI expansion to ensure the user NEVER sees 2 lines.
       const textOnly = scraped?.textContent || '';
       const paragraphCount = scraped?.content?.split('</p>').length || 0;
 
-      if (scraped && textOnly.length > 1500 && paragraphCount >= 4) {
-        console.log(`✅ Scraped content looks high quality (${textOnly.length} chars, ${paragraphCount} paras)`);
+      if (scraped && textOnly.length > 2000 && paragraphCount >= 5) {
+        console.log(`✅ Scraped content accepted: ${textOnly.length} chars`);
         fullContent = scraped.content;
         isFullContent = true;
         wordCount = textOnly.trim().split(/\s+/).length;
       } else {
-        console.log(`⚠️ Scraped content too short or poor quality, forcing AI expansion...`);
+        console.log(`⚠️ Scraped content poor quality, FORCING full AI expansion for ${title}...`);
         const expanded = await expandNewsSnippet(displayTitle, snippet, category);
         fullContent = expanded;
         isFullContent = true;
-        isAiEnhanced = true; // Force badge for AI expanded short stories
+        isAiEnhanced = true;
         wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
       }
     } catch (err) {
@@ -123,7 +123,7 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
     wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
   }
 
-  const readingTime = Math.max(2, Math.ceil(wordCount / 180)); // Slightly slower reading speed for more realistic time
+  const readingTime = Math.max(3, Math.ceil(wordCount / 180));
 
   return (
     <>
