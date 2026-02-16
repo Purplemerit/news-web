@@ -106,35 +106,36 @@ export async function expandNewsSnippet(
   snippet: string,
   category?: string
 ): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn('GEMINI_API_KEY is missing, returning snippet as fallback');
+    return snippet ? `<p>${snippet}</p>` : '';
+  }
+
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
-      You are a professional news journalist. I have a news headline and a short snippet, but the full article is unavailable.
-      Please write a comprehensive, professional, and engaging news article based on this information.
+      You are a professional journalist. Write a comprehensive 4-6 paragraph news article based on this headline and snippet.
       
       Headline: ${title}
       Snippet: ${snippet}
       Category: ${category || 'General News'}
       
       Instructions:
-      1. Write at least 4-6 detailed paragraphs.
-      2. Maintain a professional journalistic tone.
-      3. Use the snippet as the starting point and expand on the context logically.
-      4. Format the output as clean HTML (use <p>, <h3>, <ul> tags where appropriate).
-      5. Do not include any filler text or "Here is your article..." messages.
-      6. If the snippet is extremely short, use your general knowledge to provide broader context related to the headline.
+      1. Write at least 350-500 words.
+      2. Format as clean HTML paragraphs (<p>).
+      3. Do not include any meta-talk or filler.
       
-      Return ONLY the HTML content.
+      Return ONLY the HTML.
     `;
 
     const result = await model.generateContent(prompt);
     const content = result.response.text().trim();
 
-    // Remove potential markdown code blocks
     return content.replace(/```html|```/g, '').trim();
-  } catch (error) {
-    console.error('Error expanding news snippet with Gemini:', error);
-    return `<p>${snippet}</p><p><em>(Note: We were unable to retrieve the full article from the source at this time.)</em></p>`;
+  } catch (error: any) {
+    console.error('Gemini expansion failed:', error.message);
+    return snippet ? `<p>${snippet}</p><p><em>(Note: AI enhancement unavailable - ${error.message})</em></p>` : '';
   }
 }
