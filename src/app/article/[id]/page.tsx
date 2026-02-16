@@ -83,15 +83,20 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
   if (source) {
     try {
       const scraped = await scrapeFullArticle(source);
-      if (scraped && scraped.content && scraped.content.length > 800) {
+      // STRICT CHECK: Only consider it "Full Story" if we got at least 600 characters of actual text.
+      // Many sites return 1000s of characters of HTML garbage but only 200 chars of text.
+      if (scraped && scraped.textContent && scraped.textContent.trim().length > 600) {
         fullContent = scraped.content;
         isFullContent = true;
-        wordCount = scraped.textContent ? scraped.textContent.split(/\s+/).length : wordCount;
+        wordCount = scraped.textContent.trim().split(/\s+/).length;
+        console.log(`✅ Original content accepted: ${scraped.textContent.length} chars`);
       } else {
+        console.log(`⚠️ Original content too short (${scraped?.textContent?.length || 0} chars), expanding with AI...`);
         const expanded = await expandNewsSnippet(title, snippet, category);
         fullContent = expanded;
         isFullContent = true;
-        isAiEnhanced = expanded.length > (snippet?.length || 0) + 200;
+        // Check if expansion actually worked (is it longer than the snippet?)
+        isAiEnhanced = expanded.replace(/<[^>]*>/g, '').length > (snippet?.length || 0) + 100;
         wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
       }
     } catch (err) {
@@ -99,14 +104,15 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
       const expanded = await expandNewsSnippet(title, snippet, category);
       fullContent = expanded;
       isFullContent = true;
-      isAiEnhanced = expanded.length > (snippet?.length || 0) + 200;
+      isAiEnhanced = expanded.replace(/<[^>]*>/g, '').length > (snippet?.length || 0) + 100;
       wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
     }
   } else if (snippet) {
+    console.log('No source URL, expanding snippet with AI...');
     const expanded = await expandNewsSnippet(title, snippet, category);
     fullContent = expanded;
     isFullContent = true;
-    isAiEnhanced = expanded.length > (snippet?.length || 0) + 200;
+    isAiEnhanced = expanded.replace(/<[^>]*>/g, '').length > (snippet?.length || 0) + 100;
     wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
   }
 
