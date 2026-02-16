@@ -68,66 +68,59 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
         const html = await response.text();
         const $ = cheerio.load(html);
 
-        // 1. Clean obvious junk (non-content)
+        // 1. STRIP ALL SOCIAL WIDGETS AND EMBEDS
         $('script, style, nav, footer, header, iframe, noscript, .ads, #ads, aside').remove();
+        $('blockquote, .instagram-media, .twitter-tweet, .fb-post, .social-embed, .embed-container').remove();
+        $('.related-articles, .newsletter-signup, .inline-newsletter').remove();
 
         // 2. FIND BEST CONTENT BLOCK
         let bestContent = '';
         let maxTextLength = 0;
 
-        // Common article containers
-        const selectors = ['article', '.article-body', '.content', '.post-content', '.entry-content', 'main', '#main-content', '.story-body', '.article__body', '.article-content'];
+        const selectors = [
+            'article', '.article-body', '.content-area', '.post-content',
+            '.entry-content', 'main', '#main-content', '.story-body',
+            '.article__body', '.article-content', '.ssrcss-11r1m4v-RichTextComponentWrapper'
+        ];
+
         selectors.forEach(selector => {
             const el = $(selector);
             if (el.length > 0) {
                 const text = el.text().trim();
                 if (text.length > maxTextLength) {
                     maxTextLength = text.length;
-                    bestContent = el.html() || '';
+                    // REFORMAT: Extract only clean text elements
+                    const paragraphs: string[] = [];
+                    el.find('p, h2, h3').each((_, p) => {
+                        const pText = $(p).text().trim();
+                        if (pText.length > 20) {
+                            const tagName = ($(p).prop('tagName') || 'p').toLowerCase();
+                            paragraphs.push(`<${tagName}>${pText}</${tagName}>`);
+                        }
+                    });
+                    bestContent = paragraphs.join('\n');
                 }
             }
         });
 
-        // 3. ROBUST FALLBACK: If no selector worked, find the largest div
-        if (maxTextLength < 500) {
-            $('div').each((_, el) => {
-                const text = $(el).text().trim();
-                // Avoid picking up the whole body if it's too large, look for sensible blocks
-                if (text.length > maxTextLength && text.length < 40000) {
-                    maxTextLength = text.length;
-                    bestContent = $(el).html() || '';
+        // 3. FALLBACK: If no selector worked, find body paragraphs
+        if (maxTextLength < 400) {
+            const paragraphs: string[] = [];
+            $('body p').each((_, p) => {
+                const pText = $(p).text().trim();
+                if (pText.length > 40) {
+                    paragraphs.push(`<p>${pText}</p>`);
                 }
             });
+            bestContent = paragraphs.join('\n');
         }
 
-        // 4. LAST RESORT: If even that fails, use the whole body
-        if (bestContent.length < 200) {
-            bestContent = $('body').html() || '';
-        }
-
-        // 5. SELECTIVE CLEANUP
-        const $clean = cheerio.load(bestContent);
-
-        // Remove common repetitive garbage labels
-        $clean('div, span, p, a, button').each((_, el) => {
-            const text = $(el).text().trim().toLowerCase();
-            if (text === 'share via' || text === 'copy link' || text.includes('follow us on')) {
-                $(el).remove();
-            }
-        });
-
-        // Remove title duplicates
-        const pageTitle = $('title').text().trim();
-        $clean('h1, h2, h3').each((_, el) => {
-            if ($(el).text().trim() === pageTitle) $(el).remove();
-        });
-
-        const mainContent = $clean('body').html() || '';
-        const textContent = $clean('body').text().trim().replace(/\s+/g, ' ');
+        const textContent = cheerio.load(bestContent).text().trim().replace(/\s+/g, ' ');
+        const pageTitle = $('title').text().split(' | ')[0].split(' - ')[0] || 'News Article';
 
         const result: ScrapedArticle = {
-            title: pageTitle || 'News Article',
-            content: mainContent,
+            title: pageTitle,
+            content: bestContent,
             textContent: textContent,
             excerpt: '',
             byline: '',
