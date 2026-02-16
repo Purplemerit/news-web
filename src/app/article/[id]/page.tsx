@@ -57,6 +57,11 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
   const source = decodeParam(search.source);
   const sourceName = decodeParam(search.sourceName, 'Original Source');
 
+  // Clean title (remove site names like "| Hindustan Times" or " - The Hindu")
+  let displayTitle = title;
+  if (displayTitle.includes(' | ')) displayTitle = displayTitle.split(' | ')[0];
+  if (displayTitle.includes(' - ')) displayTitle = displayTitle.split(' - ')[0];
+
   if (!title) {
     notFound();
   }
@@ -83,34 +88,42 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
   if (source) {
     try {
       const scraped = await scrapeFullArticle(source);
-      if (scraped && scraped.content && scraped.content.length > 800) {
+
+      // VERY STRICT CHECK: Many sites return junk. 
+      // We only accept it if it's genuinely long (>1500 chars of text) or has many paragraphs.
+      const textOnly = scraped?.textContent || '';
+      const paragraphCount = scraped?.content?.split('</p>').length || 0;
+
+      if (scraped && textOnly.length > 1500 && paragraphCount >= 4) {
+        console.log(`✅ Scraped content looks high quality (${textOnly.length} chars, ${paragraphCount} paras)`);
         fullContent = scraped.content;
         isFullContent = true;
-        wordCount = scraped.textContent ? scraped.textContent.split(/\s+/).length : wordCount;
+        wordCount = textOnly.trim().split(/\s+/).length;
       } else {
-        const expanded = await expandNewsSnippet(title, snippet, category);
+        console.log(`⚠️ Scraped content too short or poor quality, forcing AI expansion...`);
+        const expanded = await expandNewsSnippet(displayTitle, snippet, category);
         fullContent = expanded;
         isFullContent = true;
-        isAiEnhanced = expanded.length > (snippet?.length || 0) + 200;
+        isAiEnhanced = true; // Force badge for AI expanded short stories
         wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
       }
     } catch (err) {
       console.error('Scraping error, falling back to AI:', err);
-      const expanded = await expandNewsSnippet(title, snippet, category);
+      const expanded = await expandNewsSnippet(displayTitle, snippet, category);
       fullContent = expanded;
       isFullContent = true;
-      isAiEnhanced = expanded.length > (snippet?.length || 0) + 200;
+      isAiEnhanced = true;
       wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
     }
   } else if (snippet) {
-    const expanded = await expandNewsSnippet(title, snippet, category);
+    const expanded = await expandNewsSnippet(displayTitle, snippet, category);
     fullContent = expanded;
     isFullContent = true;
-    isAiEnhanced = expanded.length > (snippet?.length || 0) + 200;
+    isAiEnhanced = true;
     wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
   }
 
-  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+  const readingTime = Math.max(2, Math.ceil(wordCount / 180)); // Slightly slower reading speed for more realistic time
 
   return (
     <>
