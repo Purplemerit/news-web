@@ -96,3 +96,45 @@ export async function rephraseArticles(
 
   return results;
 }
+
+/**
+ * Expand a news snippet into a full article using Gemini
+ * Useful when scraping fails but we have the title and a short summary
+ */
+export async function expandNewsSnippet(
+  title: string,
+  snippet: string,
+  category?: string
+): Promise<string> {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const prompt = `
+      You are a professional news journalist. I have a news headline and a short snippet, but the full article is unavailable.
+      Please write a comprehensive, professional, and engaging news article based on this information.
+      
+      Headline: ${title}
+      Snippet: ${snippet}
+      Category: ${category || 'General News'}
+      
+      Instructions:
+      1. Write at least 4-6 detailed paragraphs.
+      2. Maintain a professional journalistic tone.
+      3. Use the snippet as the starting point and expand on the context logically.
+      4. Format the output as clean HTML (use <p>, <h3>, <ul> tags where appropriate).
+      5. Do not include any filler text or "Here is your article..." messages.
+      6. If the snippet is extremely short, use your general knowledge to provide broader context related to the headline.
+      
+      Return ONLY the HTML content.
+    `;
+
+    const result = await model.generateContent(prompt);
+    const content = result.response.text().trim();
+
+    // Remove potential markdown code blocks
+    return content.replace(/```html|```/g, '').trim();
+  } catch (error) {
+    console.error('Error expanding news snippet with Gemini:', error);
+    return `<p>${snippet}</p><p><em>(Note: We were unable to retrieve the full article from the source at this time.)</em></p>`;
+  }
+}
