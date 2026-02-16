@@ -1,5 +1,3 @@
-import { JSDOM } from 'jsdom';
-import { Readability } from '@mozilla/readability';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export interface ScrapedArticle {
@@ -19,7 +17,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 /**
  * Clean HTML to reduce token usage for Gemini
  */
-function cleanHtmlForGemini(html: string): string {
+async function cleanHtmlForGemini(html: string): Promise<string> {
+    const { JSDOM } = await import('jsdom');
     const dom = new JSDOM(html);
     const doc = dom.window.document;
 
@@ -35,7 +34,7 @@ async function extractWithGemini(html: string, url: string): Promise<Partial<Scr
 
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const cleanContent = cleanHtmlForGemini(html);
+        const cleanContent = await cleanHtmlForGemini(html);
 
         const prompt = `
             Extract the full main article content from this HTML snippet. 
@@ -58,6 +57,25 @@ async function extractWithGemini(html: string, url: string): Promise<Partial<Scr
     }
 }
 
+/**
+ * Fetch with timeout
+ */
+async function fetchWithTimeout(url: string, options: any = {}, timeout = 8000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(id);
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        throw error;
+    }
+}
+
 export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | null> {
     // Check cache
     const cached = scraperCache.get(url);
@@ -66,19 +84,24 @@ export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | n
     }
 
     try {
-        const response = await fetch(url, {
+        const response = await fetchWithTimeout(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.5',
             },
-        });
+        }, 8000); // 8 second timeout
 
         if (!response.ok) {
             throw new Error(`Failed to fetch article: ${response.statusText}`);
         }
 
         const html = await response.text();
+
+        // Dynamic imports to prevent issues on some platforms
+        const { JSDOM } = await import('jsdom');
+        const { Readability } = await import('@mozilla/readability');
+
         const dom = new JSDOM(html, { url });
         const reader = new Readability(dom.window.document);
         const article = reader.parse();
