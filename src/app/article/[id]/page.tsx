@@ -89,38 +89,17 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
     try {
       const scraped = await scrapeFullArticle(source);
 
-      // ULTRA-STRICT CHECK: Only accept scraped content if it's genuinely Long (>2000 chars)
-      // If it's shorter, we FORCE AI expansion to ensure the user NEVER sees 2 lines.
       const textOnly = scraped?.textContent || '';
       const paragraphCount = scraped?.content?.split('</p>').length || 0;
 
-      if (scraped && textOnly.length > 2000 && paragraphCount >= 5) {
-        console.log(`✅ Scraped content accepted: ${textOnly.length} chars`);
-        let cleaned = scraped.content;
-
-        // DEDUPLICATION: Remove duplicate title/heading from the content start
-        const titleWords = displayTitle.toLowerCase().split(/\s+/).slice(0, 3).join(' ');
-        const headingRegex = /<(h1|h2|h3)[^>]*>(.*?)<\/\1>/i;
-        const match = cleaned.match(headingRegex);
-        if (match && match[2].toLowerCase().includes(titleWords)) {
-          cleaned = cleaned.replace(headingRegex, '');
-        }
-
-        // DEDUPLICATION: Remove redundant image if it matches the hero URL
-        if (image) {
-          const firstImgRegex = /<img[^>]*>/i;
-          const firstImgMatch = cleaned.match(firstImgRegex);
-          const fileName = image.split('/').pop()?.split('?')[0];
-          if (firstImgMatch && fileName && firstImgMatch[0].includes(fileName)) {
-            cleaned = cleaned.replace(firstImgRegex, '');
-          }
-        }
-
-        fullContent = cleaned;
+      // REQUIREMENT: Must be >1800 characters of clean text OR >6 robust paragraphs
+      if (scraped && textOnly.length > 1800 && paragraphCount >= 6) {
+        console.log(`✅ Scraped content looks solid (${textOnly.length} chars)`);
+        fullContent = scraped.content;
         isFullContent = true;
         wordCount = textOnly.trim().split(/\s+/).length;
       } else {
-        console.log(`⚠️ Scraped content poor quality, FORCING full AI expansion for ${title}...`);
+        console.log(`⚠️ Scraped content insufficient (${textOnly.length} chars), triggering AI expansion...`);
         const expanded = await expandNewsSnippet(displayTitle, snippet, category);
         fullContent = expanded;
         isFullContent = true;
@@ -143,7 +122,8 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
     wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
   }
 
-  const readingTime = Math.max(2, Math.ceil(wordCount / 200));
+  const readingTime = Math.max(3, Math.ceil(wordCount / 210));
+
 
   return (
     <>
