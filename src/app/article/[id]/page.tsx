@@ -96,7 +96,27 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
 
       if (scraped && textOnly.length > 2000 && paragraphCount >= 5) {
         console.log(`✅ Scraped content accepted: ${textOnly.length} chars`);
-        fullContent = scraped.content;
+        let cleaned = scraped.content;
+
+        // DEDUPLICATION: Remove duplicate title/heading from the content start
+        const titleWords = displayTitle.toLowerCase().split(/\s+/).slice(0, 3).join(' ');
+        const headingRegex = /<(h1|h2|h3)[^>]*>(.*?)<\/\1>/i;
+        const match = cleaned.match(headingRegex);
+        if (match && match[2].toLowerCase().includes(titleWords)) {
+          cleaned = cleaned.replace(headingRegex, '');
+        }
+
+        // DEDUPLICATION: Remove redundant image if it matches the hero URL
+        if (image) {
+          const firstImgRegex = /<img[^>]*>/i;
+          const firstImgMatch = cleaned.match(firstImgRegex);
+          const fileName = image.split('/').pop()?.split('?')[0];
+          if (firstImgMatch && fileName && firstImgMatch[0].includes(fileName)) {
+            cleaned = cleaned.replace(firstImgRegex, '');
+          }
+        }
+
+        fullContent = cleaned;
         isFullContent = true;
         wordCount = textOnly.trim().split(/\s+/).length;
       } else {
@@ -123,7 +143,7 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
     wordCount = fullContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
   }
 
-  const readingTime = Math.max(3, Math.ceil(wordCount / 180));
+  const readingTime = Math.max(2, Math.ceil(wordCount / 200));
 
   return (
     <>
