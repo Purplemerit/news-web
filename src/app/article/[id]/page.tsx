@@ -178,7 +178,7 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
                 AI Enhanced Report
               </div>
             ) : isFullContent ? (
-              <div className={styles.fullStoryBadge}>Full Story Retrieved</div>
+              <div className={styles.fullStoryBadge}>From Trusted Source</div>
             ) : null}
 
             {isFullContent ? (
