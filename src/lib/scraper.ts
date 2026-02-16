@@ -1,3 +1,4 @@
+import * as cheerio from 'cheerio';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export interface ScrapedArticle {
@@ -10,82 +11,41 @@ export interface ScrapedArticle {
 }
 
 const scraperCache = new Map<string, { data: ScrapedArticle; timestamp: number }>();
-const CACHE_DURATION = 60 * 60 * 1000; // 1 hour for full articles
+const CACHE_DURATION = 60 * 60 * 1000;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-
-/**
- * Clean HTML to reduce token usage for Gemini
- */
-async function cleanHtmlForGemini(html: string): Promise<string> {
-    const { JSDOM } = await import('jsdom');
-    const dom = new JSDOM(html);
-    const doc = dom.window.document;
-
-    // Remove scripts, styles, nav, footer, ads
-    const toRemove = doc.querySelectorAll('script, style, nav, footer, iframe, noscript, .ads, #ads, header');
-    toRemove.forEach(el => el.remove());
-
-    return doc.body.innerHTML;
-}
 
 async function extractWithGemini(html: string, url: string): Promise<Partial<ScrapedArticle> | null> {
     if (!process.env.GEMINI_API_KEY) return null;
 
-    try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const cleanContent = await cleanHtmlForGemini(html);
+    // Use a simpler fallback if Gemini is also being problematic
+    const models = ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-pro'];
 
-        const prompt = `
-            Extract the full main article content from this HTML snippet. 
-            Return the content as clean HTML (only paragraphs, headings, and lists). 
-            Do not include ads, navigation links, or sidebars.
-            URL: ${url}
-            HTML: ${cleanContent.substring(0, 30000)} // Truncate to avoid token limits
-        `;
+    for (const modelName of models) {
+        try {
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const $ = cheerio.load(html);
+            $('script, style, nav, footer, header, ads, .ads, #ads').remove();
+            const body = $('body').html()?.substring(0, 20000) || '';
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-
-        // Basic cleaning of Gemini output (remove markdown code blocks if any)
-        const content = text.replace(/```html|```/g, '').trim();
-
-        return { content };
-    } catch (error) {
-        console.error('Gemini extraction error:', error);
-        return null;
+            const prompt = `Extract the main article content from this HTML. Return only clean HTML paragraphs. URL: ${url}\nHTML: ${body}`;
+            const result = await model.generateContent(prompt);
+            return { content: result.response.text().replace(/```html|```/g, '').trim() };
+        } catch (e) {
+            console.warn(`Gemini extraction failed for ${modelName}, trying next...`);
+        }
     }
+    return null;
 }
 
-/**
- * Fetch with timeout and better headers
- */
-async function fetchWithTimeout(url: string, options: any = {}, timeout = 9000) {
+async function fetchWithTimeout(url: string, timeout = 9000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
-
-    const headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Sec-Ch-Ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"macOS"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        ...options.headers,
-    };
-
     try {
         const response = await fetch(url, {
-            ...options,
-            headers,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
             signal: controller.signal
         });
         clearTimeout(id);
@@ -97,74 +57,60 @@ async function fetchWithTimeout(url: string, options: any = {}, timeout = 9000) 
 }
 
 export async function scrapeFullArticle(url: string): Promise<ScrapedArticle | null> {
-    // Check cache
     const cached = scraperCache.get(url);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION && cached.data.content.length > 500) {
-        return cached.data;
-    }
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) return cached.data;
 
     try {
-        const response = await fetchWithTimeout(url, {}, 9000);
-
-        if (!response.ok) {
-            console.error(`Failed to fetch article: ${response.status} ${response.statusText} for ${url}`);
-            return null;
-        }
+        const response = await fetchWithTimeout(url);
+        if (!response.ok) return null;
 
         const html = await response.text();
-        if (html.length < 1000) {
-            console.warn(`HTML content too short (${html.length} chars) for ${url}. Might be a block page.`);
+        const $ = cheerio.load(html);
+
+        // Remove junk
+        $('script, style, nav, footer, header, iframe, noscript, .ads, #ads').remove();
+
+        // Smart Extraction: Find the largest block of text
+        let mainContent = '';
+        let largestTextLen = 0;
+
+        // Common article containers
+        const containers = ['article', '.article-body', '.content', '.post-content', '.entry-content', 'main', '#main-content'];
+
+        for (const selector of containers) {
+            const el = $(selector);
+            if (el.length > 0) {
+                const text = el.text().trim();
+                if (text.length > largestTextLen) {
+                    largestTextLen = text.length;
+                    mainContent = el.html() || '';
+                }
+            }
         }
 
-        // Dynamic imports for production stability
-        const jsdomModule = await import('jsdom');
-        const JSDOM = jsdomModule.JSDOM;
-
-        const readabilityModule = await import('@mozilla/readability');
-        const Readability = readabilityModule.Readability;
-
-        const dom = new JSDOM(html, { url, resources: "usable" });
-        const reader = new Readability(dom.window.document);
-        const article = reader.parse();
-
-        let result: ScrapedArticle;
-
-        const hasValidReadability = article && article.content && article.content.length > 600;
-
-        if (!hasValidReadability) {
-            console.log(`Readability failed or content too short for ${url}, trying Gemini fallback...`);
-            const geminiResult = await extractWithGemini(html, url);
-
-            result = {
-                title: article?.title || dom.window.document.title || 'Untitled Article',
-                content: geminiResult?.content || article?.content || '',
-                textContent: article?.textContent || (geminiResult?.content ? geminiResult.content.replace(/<[^>]*>/g, '') : ''),
-                excerpt: article?.excerpt || '',
-                byline: article?.byline || '',
-                siteName: article?.siteName || '',
-            };
-        } else {
-            result = {
-                title: article.title || '',
-                content: article.content || '',
-                textContent: article.textContent || '',
-                excerpt: article.excerpt || '',
-                byline: article.byline || '',
-                siteName: article.siteName || '',
-            };
+        // Fallback: Use body if no container found
+        if (largestTextLen < 500) {
+            mainContent = $('body').html() || '';
         }
 
-        // Only cache if we actually got significant content
+        const textContent = cheerio.load(mainContent).text().trim().replace(/\s+/g, ' ');
+
+        const result: ScrapedArticle = {
+            title: $('title').text() || '',
+            content: mainContent,
+            textContent: textContent,
+            excerpt: '',
+            byline: '',
+            siteName: url.split('/')[2],
+        };
+
         if (result.content.length > 500) {
-            scraperCache.set(url, {
-                data: result,
-                timestamp: Date.now(),
-            });
+            scraperCache.set(url, { data: result, timestamp: Date.now() });
         }
 
         return result;
     } catch (error: any) {
-        console.error(`Error scraping article at ${url}:`, error.message);
+        console.error(`Scraper error for ${url}:`, error.message);
         return null;
     }
 }

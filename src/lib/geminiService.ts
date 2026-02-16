@@ -1,7 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-
 export interface RephraseResult {
   originalTitle: string;
   rephrasedTitle: string;
@@ -11,6 +9,19 @@ export interface RephraseResult {
   rephrasedExcerpt?: string;
 }
 
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+// Comprehensive list of models to try, from newest to most stable
+const GEMINI_MODELS = [
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-latest',
+  'gemini-2.0-flash-exp',
+  'gemini-1.5-pro',
+  'gemini-1.5-flash-8b',
+  'gemini-pro',
+  'gemini-1.0-pro'
+];
+
 /**
  * Rephrase news article using Gemini API
  */
@@ -19,14 +30,7 @@ export async function rephraseArticle(
   content: string,
   excerpt?: string
 ): Promise<RephraseResult> {
-  const modelsToTry = [
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-pro',
-    'gemini-1.0-pro'
-  ];
-
-  for (const modelName of modelsToTry) {
+  for (const modelName of GEMINI_MODELS) {
     try {
       const model = genAI.getGenerativeModel({ model: modelName });
 
@@ -67,6 +71,7 @@ export async function rephraseArticle(
       };
     } catch (error: any) {
       console.warn(`Rephrase failed for model ${modelName}:`, error.message);
+      if (error.message?.includes('404')) continue; // Try next if model not found
     }
   }
 
@@ -89,12 +94,9 @@ export async function rephraseArticles(
         article.excerpt
       );
       results.push(rephrased);
-
-      // Add delay to avoid rate limits (Gemini has 15 RPM limit on free tier)
       await new Promise(resolve => setTimeout(resolve, 4000));
     } catch (error) {
       console.error(`Failed to rephrase article: ${article.title}`, error);
-      // Continue with next article
     }
   }
 
@@ -109,19 +111,11 @@ export async function expandNewsSnippet(
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return snippet ? `<p>${snippet}</p>` : '';
 
-  // Wider range of models to overcome potential region/tier restrictions
-  const modelsToTry = [
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-pro',
-    'gemini-1.0-pro',
-    'gemini-pro'
-  ];
-
   const snippetLen = snippet?.length || 0;
 
-  for (const modelName of modelsToTry) {
+  for (const modelName of GEMINI_MODELS) {
     try {
+      console.log(`Attempting AI expansion for "${title}" using model: ${modelName}`);
       const model = genAI.getGenerativeModel({ model: modelName });
       const prompt = `
         You are a senior investigative journalist writing for a premier news organization. 
@@ -146,15 +140,15 @@ export async function expandNewsSnippet(
       const content = result.response.text().trim();
       const cleaned = content.replace(/```html|```/g, '').trim();
 
-      // Ensure it's actually an expansion
-      if (cleaned.length > snippetLen * 1.5 && cleaned.length > 300) {
+      if (cleaned.length > snippetLen * 1.5 && cleaned.length > 500) {
+        console.log(`✅ AI Expansion successful with ${modelName} (${cleaned.length} characters)`);
         return cleaned;
       }
     } catch (error: any) {
-      console.warn(`Model ${modelName} failed/rejected for ${title}:`, error.message);
+      console.warn(`Model ${modelName} expansion failed:`, error.message);
+      if (error.message?.includes('404')) continue;
     }
   }
 
-  // Fallback to original snippet if AI expansion fails or is poor
   return snippet ? `<p>${snippet}</p>` : '';
 }
