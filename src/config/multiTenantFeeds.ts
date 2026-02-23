@@ -47,6 +47,7 @@ export const MULTI_TENANT_FEEDS: Record<CountryCode, CountryFeeds> = {
           business: 'https://www.thehindu.com/business/feeder/default.rss',
           sports: 'https://www.thehindu.com/sport/feeder/default.rss',
           technology: 'https://www.thehindu.com/sci-tech/feeder/default.rss',
+          politics: 'https://www.thehindu.com/news/national/feeder/default.rss',
         }
       },
       {
@@ -59,6 +60,7 @@ export const MULTI_TENANT_FEEDS: Record<CountryCode, CountryFeeds> = {
           world: 'https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms',
           business: 'https://timesofindia.indiatimes.com/rssfeeds/4719148.cms',
           sports: 'https://timesofindia.indiatimes.com/rssfeeds/4719161.cms',
+          politics: 'https://timesofindia.indiatimes.com/rssfeeds/15494444.cms',
         }
       },
       {
@@ -72,6 +74,7 @@ export const MULTI_TENANT_FEEDS: Record<CountryCode, CountryFeeds> = {
           business: 'https://feeds.feedburner.com/ndtvnews-business',
           sports: 'https://feeds.feedburner.com/ndtvsports-latest',
           technology: 'https://feeds.feedburner.com/gadgets360-latest',
+          politics: 'https://feeds.feedburner.com/ndtvnews-india-news',
         }
       },
     ]

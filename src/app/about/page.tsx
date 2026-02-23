@@ -1,18 +1,48 @@
 'use client';
 
-import React from 'react';
 import styles from './about.module.css';
+import Image from 'next/image';
+import { useState } from 'react';
 
 export default function AboutPage() {
+    const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+    const faqs = [
+        {
+            q: 'How frequently is the news updated?',
+            a: 'Our news feeds are updated in real-time, 24/7. We source from over 50 global outlets to ensure you get the latest headlines as they happen.'
+        },
+        {
+            q: 'Can I filter news by category or interest?',
+            a: 'Yes! You can use our category navigation at the top of the page to browse specific topics like Technology, Business, Sports, and International News.'
+        },
+        {
+            q: 'Can I access older articles or archives?',
+            a: 'Absolutely. Use our search feature to find articles from our archives dating back to the start of our digital publication.'
+        },
+        {
+            q: 'How do I sign up for your newsletter?',
+            a: 'You can subscribe to our daily digest at the bottom of the homepage. Just enter your email and stay updated with curated stories.'
+        },
+        {
+            q: 'Who writes your articles?',
+            a: 'Our content is written by a team of award-winning journalists and verified contributors from across the globe, ensuring high standards of reporting.'
+        }
+    ];
+
     return (
         <div className={styles.container}>
             {/* Main Hero Image */}
             <div className={styles.heroImageWrapper}>
-                <img
-                    src="https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&q=80&w=2000"
-                    alt="Starry Night Mountains"
-                    className={styles.heroImage}
-                />
+                <div className={styles.imageRelative}>
+                    <Image
+                        src="/aboutimages/image copy 5.png"
+                        alt="Starry Night Mountains"
+                        fill
+                        className={styles.heroImage}
+                        priority
+                    />
+                </div>
             </div>
 
             {/* Intro Section */}
@@ -51,16 +81,22 @@ export default function AboutPage() {
 
                     {/* Right Column: Two Images */}
                     <div className={styles.introImages}>
-                        <img
-                            src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=500"
-                            alt="Abstract 3D Shape"
-                            className={styles.introImage}
-                        />
-                        <img
-                            src="https://images.unsplash.com/photo-1558591710-4b4a1ae0f04d?auto=format&fit=crop&q=80&w=500"
-                            alt="Blurry Portrait"
-                            className={styles.introImage}
-                        />
+                        <div className={styles.imageContainer}>
+                            <Image
+                                src="/aboutimages/image copy 4.png"
+                                alt="Abstract 3D Shape"
+                                fill
+                                className={styles.introImage}
+                            />
+                        </div>
+                        <div className={styles.imageContainer}>
+                            <Image
+                                src="/aboutimages/image copy 3.png"
+                                alt="Blurry Portrait"
+                                fill
+                                className={styles.introImage}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -84,11 +120,14 @@ export default function AboutPage() {
 
                     {/* Center Col - Image */}
                     <div className={styles.storyCenter}>
-                        <img
-                            src="https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&q=80"
-                            alt="River Landscape"
-                            className={styles.centerImage}
-                        />
+                        <div className={styles.imageContainerStory}>
+                            <Image
+                                src="/aboutimages/image copy 2.png"
+                                alt="River Landscape"
+                                fill
+                                className={styles.centerImage}
+                            />
+                        </div>
                     </div>
 
                     {/* Right Col */}
@@ -134,11 +173,14 @@ export default function AboutPage() {
                 </div>
 
                 <div className={styles.trustedImageWrapper}>
-                    <img
-                        src="https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&q=80"
-                        alt="Golden Wheat Field"
-                        className={styles.trustedImage}
-                    />
+                    <div className={styles.imageContainerTrusted}>
+                        <Image
+                            src="/aboutimages/image copy.png"
+                            alt="Golden Wheat Field"
+                            fill
+                            className={styles.trustedImage}
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -148,21 +190,32 @@ export default function AboutPage() {
                     <h2 className={styles.faqHeading}>Have any Questions?</h2>
 
                     <div className={styles.questionsList}>
-                        {['How frequently is the news updated?', 'Can I filter news by category or interest?', 'Can I access older articles or archives?', 'How do I sign up for your newsletter?', 'Who writes your articles?'].map((q, i) => (
-                            <div key={i} className={styles.questionRow}>
-                                <span>{q}</span>
-                                <span className={styles.arrowIcon}>→</span>
+                        {faqs.map((faq, i) => (
+                            <div key={i} className={styles.questionItem}>
+                                <div
+                                    className={styles.questionRow}
+                                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                                >
+                                    <span>{faq.q}</span>
+                                    <span className={`${styles.arrowIcon} ${openFaq === i ? styles.rotated : ''}`}>→</span>
+                                </div>
+                                <div className={`${styles.answerContent} ${openFaq === i ? styles.show : ''}`}>
+                                    <p>{faq.a}</p>
+                                </div>
                             </div>
                         ))}
                     </div>
                 </div>
 
                 <div className={styles.faqImageWrapper}>
-                    <img
-                        src="https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&q=80"
-                        alt="City at Night"
-                        className={styles.faqImage}
-                    />
+                    <div className={styles.imageContainerFaq}>
+                        <Image
+                            src="/aboutimages/image.png"
+                            alt="City at Night"
+                            fill
+                            className={styles.faqImage}
+                        />
+                    </div>
                 </div>
             </div>
 

@@ -24,7 +24,7 @@ export default function TermsPage() {
 
             <div className={styles.heroImageWrapper}>
                 <img
-                    src="https://images.unsplash.com/photo-1555432384-22a9ee9ae75f?auto=format&fit=crop&q=80&w=1200"
+                    src="./Frame21214530684.png"
                     alt="Terms and Conditions Document"
                     className={styles.heroImage}
                 />
