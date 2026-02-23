@@ -53,13 +53,25 @@
   letter-spacing: 0.05em;
 }
 
+.titleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.copyBtnWrapper {
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
 .title {
   font-family: var(--font-fraunces);
   font-size: clamp(1.75rem, 5vw, 2.75rem);
   font-weight: 800;
   line-height: 1.1;
   color: #0f172a;
-  margin-bottom: 16px;
   letter-spacing: -0.02em;
 }
 
@@ -300,8 +312,33 @@
     padding: 24px;
   }
 
+  .titleRow {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .copyBtnWrapper {
+    margin-top: 0;
+  }
+
   .title {
     font-size: 1.85rem;
+  }
+
+  .articleStats {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .shareIconGroup {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .articleBody p,

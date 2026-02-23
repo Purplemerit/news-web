@@ -36,7 +36,12 @@ export default function SocialShare({ url: initialUrl, title }: SocialShareProps
     };
 
     return (
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+            flexWrap: 'wrap'
+        }}>
             <TwitterShareButton url={activeUrl} title={title}>
                 <TwitterIcon size={32} round />
             </TwitterShareButton>
