@@ -130,15 +130,35 @@ export default function CategoryPage({ slug }: CategoryPageProps) {
     );
   }
 
-  const mainArticle = articles[0] || {
-    title: `Latest ${categoryName} News`,
-    description: "Stay informed with the latest updates",
-    image: fallbackImage,
-    pubDate: new Date().toLocaleDateString(),
-    link: "#",
-    category: categoryName,
-    readTime: "5 Min"
-  };
+  if (!isLoading && !countryLoading && articles.length === 0) {
+    return (
+      <div className={styles.container}>
+        <div style={{ padding: '80px 20px', textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📰</div>
+          <h2 style={{ fontFamily: 'var(--font-fraunces)', fontSize: '2rem', marginBottom: '10px' }}>No News found in {categoryName}</h2>
+          <p style={{ color: '#64748b', maxWidth: '400px', margin: '0 auto 30px' }}>
+            We couldn't find any recent stories for this category in your region. Check back later or try another category.
+          </p>
+          <Link
+            href="/"
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#1E293B',
+              color: 'white',
+              borderRadius: '8px',
+              textDecoration: 'none',
+              fontWeight: '600',
+              transition: 'background 0.2s'
+            }}
+          >
+            Back to Homepage
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const mainArticle = articles[0];
 
   const trending = articles.slice(1, 5);
   const gridArticles = articles.slice(5, 11);
