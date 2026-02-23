@@ -138,9 +138,9 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
         <article className={styles.article}>
           <div className={styles.header}>
             <div className={styles.category}>{category}</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '24px' }}>
+            <div className={styles.titleRow}>
               <h1 className={styles.title}>{title}</h1>
-              <div style={{ flexShrink: 0, marginTop: '8px' }}>
+              <div className={styles.copyBtnWrapper}>
                 <CopyButton url={fullUrl} size={20} />
               </div>
             </div>
